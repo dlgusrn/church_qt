@@ -6,13 +6,15 @@ import com.church.qt.domain.teacher.TeacherRole;
 public record TeacherLoginResponse(
         Long teacherId,
         String teacherName,
-        TeacherRole role
+        TeacherRole role,
+        String accessToken
 ) {
-    public static TeacherLoginResponse from(Teacher teacher) {
+    public static TeacherLoginResponse from(Teacher teacher, String accessToken) {
         return new TeacherLoginResponse(
                 teacher.getId(),
                 teacher.getTeacherName(),
-                teacher.getRole()
+                teacher.getRole(),
+                accessToken
         );
     }
 }

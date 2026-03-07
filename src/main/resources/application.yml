@@ -19,3 +19,8 @@ spring:
     properties:
       hibernate:
         format_sql: true
+
+app:
+  auth:
+    jwt-secret: church-qt-local-dev-secret-key-that-is-long-enough-1234567890
+    access-token-expiration-seconds: 28800

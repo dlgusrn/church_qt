@@ -32,23 +32,14 @@ public class YearClass extends BaseTimeEntity {
     private Boolean active;
 
     @Builder
-    public YearClass(
-            Year year,
-            String className,
-            Integer sortOrder,
-            Boolean active
-    ) {
+    public YearClass(Year year, String className, Integer sortOrder, boolean active) {
         this.year = year;
         this.className = className;
         this.sortOrder = sortOrder;
         this.active = active;
     }
 
-    public void updateInfo(
-            String className,
-            Integer sortOrder,
-            Boolean active
-    ) {
+    public void updateInfo(String className, Integer sortOrder, boolean active) {
         this.className = className;
         this.sortOrder = sortOrder;
         this.active = active;

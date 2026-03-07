@@ -10,11 +10,20 @@ import com.church.qt.domain.year.Year;
 import com.church.qt.domain.year.YearRepository;
 import com.church.qt.domain.yearclass.YearClassStudentRepository;
 import com.church.qt.domain.yearclass.YearClassTeacherRepository;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import javax.crypto.SecretKey;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.Date;
 import java.util.List;
 
 @Service
@@ -29,6 +38,12 @@ public class TeacherAppService {
     private final YearClassTeacherRepository yearClassTeacherRepository;
     private final PasswordEncoder passwordEncoder;
 
+    @Value("${app.auth.jwt-secret}")
+    private String jwtSecret;
+
+    @Value("${app.auth.access-token-expiration-seconds}")
+    private long accessTokenExpirationSeconds;
+
     @Transactional(readOnly = true)
     public TeacherLoginResponse login(TeacherLoginRequest request) {
         Teacher teacher = teacherRepository.findByLoginIdAndActiveTrue(request.loginId())
@@ -38,7 +53,8 @@ public class TeacherAppService {
             throw new IllegalArgumentException("아이디 또는 비밀번호가 올바르지 않습니다.");
         }
 
-        return TeacherLoginResponse.from(teacher);
+        String accessToken = createAccessToken(teacher);
+        return TeacherLoginResponse.from(teacher, accessToken);
     }
 
     @Transactional(readOnly = true)
@@ -91,5 +107,48 @@ public class TeacherAppService {
         } else {
             check.updateChecks(request.qtChecked(), request.noteChecked(), teacher);
         }
+    }
+
+    public Long extractTeacherId(String authorizationHeader) {
+        String token = extractBearerToken(authorizationHeader);
+
+        try {
+            Claims claims = Jwts.parser()
+                    .verifyWith(getSigningKey())
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+
+            return Long.valueOf(claims.getSubject());
+        } catch (JwtException e) {
+            throw new IllegalArgumentException("유효하지 않은 인증 토큰입니다.");
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("유효하지 않은 인증 토큰입니다.");
+        }
+    }
+
+    private String createAccessToken(Teacher teacher) {
+        Instant now = Instant.now();
+
+        return Jwts.builder()
+                .subject(String.valueOf(teacher.getId()))
+                .claim("teacherName", teacher.getTeacherName())
+                .claim("role", teacher.getRole().name())
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusSeconds(accessTokenExpirationSeconds)))
+                .signWith(getSigningKey())
+                .compact();
+    }
+
+    private SecretKey getSigningKey() {
+        return Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private String extractBearerToken(String authorizationHeader) {
+        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
+            throw new IllegalArgumentException("인증 토큰이 없습니다.");
+        }
+
+        return authorizationHeader.substring(7);
     }
 }
