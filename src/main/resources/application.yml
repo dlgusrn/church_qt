@@ -1,0 +1,21 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: church-qt
+
+  datasource:
+    url: jdbc:mysql://49.247.175.56:3306/church_qt?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    username: root
+    password: qkdthdtlf08!
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: true
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
