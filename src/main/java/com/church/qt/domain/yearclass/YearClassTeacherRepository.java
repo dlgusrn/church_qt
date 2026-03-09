@@ -8,6 +8,10 @@ import java.util.List;
 
 public interface YearClassTeacherRepository extends JpaRepository<YearClassTeacher, Long> {
 
+    boolean existsByYearClassIdAndTeacherId(Long yearClassId, Long teacherId);
+    List<YearClassTeacher> findByYearClassIdAndTeacherIdIn(Long yearClassId, List<Long> teacherIds);
+    List<YearClassTeacher> findByYearClassIdInOrderByYearClassIdAscTeacherTeacherNameAsc(List<Long> yearClassIds);
+
     @Query("""
         select case when count(yct) > 0 then true else false end
         from YearClassTeacher yct

@@ -19,6 +19,11 @@ public class StudentAppController {
         return studentAppService.getStudents();
     }
 
+    @GetMapping("/api/students/current-year")
+    public StudentCurrentYearResponse getCurrentYear() {
+        return studentAppService.getCurrentYear();
+    }
+
     @GetMapping("/api/students/{studentId}/calendar")
     public StudentCalendarResponse getStudentCalendar(
             @PathVariable Long studentId,

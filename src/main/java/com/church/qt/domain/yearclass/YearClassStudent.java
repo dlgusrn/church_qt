@@ -47,4 +47,9 @@ public class YearClassStudent extends BaseTimeEntity {
         this.yearClass = yearClass;
         this.student = student;
     }
+
+    public void moveToYearClass(YearClass yearClass) {
+        this.yearClass = yearClass;
+        this.year = yearClass.getYear();
+    }
 }

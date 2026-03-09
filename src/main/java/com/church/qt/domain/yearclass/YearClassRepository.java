@@ -6,5 +6,6 @@ import java.util.List;
 
 public interface YearClassRepository extends JpaRepository<YearClass, Long> {
 
+    List<YearClass> findByYearIdOrderBySortOrderAscIdAsc(Long yearId);
     List<YearClass> findByYearIdAndActiveTrueOrderBySortOrderAscIdAsc(Long yearId);
 }

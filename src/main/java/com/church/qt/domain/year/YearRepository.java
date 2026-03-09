@@ -8,6 +8,7 @@ import java.util.Optional;
 public interface YearRepository extends JpaRepository<Year, Long> {
 
     Optional<Year> findByYearValue(Integer yearValue);
+    List<Year> findAllByOrderByYearValueDescIdDesc();
 
     List<Year> findByActiveTrueOrderByYearValueDesc();
 

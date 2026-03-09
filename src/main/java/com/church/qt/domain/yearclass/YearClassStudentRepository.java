@@ -12,6 +12,9 @@ public interface YearClassStudentRepository extends JpaRepository<YearClassStude
     List<YearClassStudent> findByYearIdAndStudentActiveTrueOrderByStudentSchoolGradeDescStudentStudentNameAsc(Long yearId);
 
     boolean existsByYearIdAndStudentId(Long yearId, Long studentId);
+    List<YearClassStudent> findByYearIdAndStudentIdIn(Long yearId, List<Long> studentIds);
+    List<YearClassStudent> findByYearClassIdAndStudentIdIn(Long yearClassId, List<Long> studentIds);
+    List<YearClassStudent> findByYearClassIdInOrderByYearClassIdAscStudentSchoolGradeDescStudentStudentNameAsc(List<Long> yearClassIds);
 
     List<YearClassStudent> findByYearClassId(Long yearClassId);
 

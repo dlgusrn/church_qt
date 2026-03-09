@@ -1,0 +1,27 @@
+name: staging-smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Staging backend base URL (e.g. https://api-staging.example.com)"
+        required: true
+        type: string
+      admin_origin:
+        description: "Allowed admin frontend origin for CORS preflight"
+        required: true
+        default: "https://admin-staging.example.com"
+        type: string
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Grant script permission
+        run: chmod +x ./scripts/staging_smoke.sh
+
+      - name: Run staging smoke script
+        run: ./scripts/staging_smoke.sh "${{ inputs.base_url }}" "${{ inputs.admin_origin }}"

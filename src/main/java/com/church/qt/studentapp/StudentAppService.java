@@ -29,14 +29,18 @@ public class StudentAppService {
 
     @Transactional(readOnly = true)
     public List<StudentListResponse> getStudents() {
-        Year latestOpenYear = yearRepository.findFirstByOpenToStudentsTrueAndActiveTrueOrderByYearValueDesc()
-                .orElseThrow(() -> new IllegalStateException("학생에게 공개된 활성 연도가 없습니다."));
+        Year latestOpenYear = getLatestOpenYear();
 
         return yearClassStudentRepository
                 .findByYearIdAndStudentActiveTrueOrderByStudentSchoolGradeDescStudentStudentNameAsc(latestOpenYear.getId())
                 .stream()
                 .map(yearClassStudent -> StudentListResponse.from(yearClassStudent.getStudent()))
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public StudentCurrentYearResponse getCurrentYear() {
+        return new StudentCurrentYearResponse(getLatestOpenYear().getYearValue());
     }
 
     @Transactional(readOnly = true)
@@ -98,5 +102,10 @@ public class StudentAppService {
                 ),
                 days
         );
+    }
+
+    private Year getLatestOpenYear() {
+        return yearRepository.findFirstByOpenToStudentsTrueAndActiveTrueOrderByYearValueDesc()
+                .orElseThrow(() -> new IllegalStateException("학생에게 공개된 활성 연도가 없습니다."));
     }
 }

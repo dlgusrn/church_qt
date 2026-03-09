@@ -6,9 +6,9 @@ spring:
     name: church-qt
 
   datasource:
-    url: jdbc:mysql://49.247.175.56:3306/church_qt?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
-    username: root
-    password: qkdthdtlf08!
+    url: ${DB_URL:jdbc:mysql://localhost:3306/church_qt?serverTimezone=Asia/Seoul&characterEncoding=UTF-8}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
@@ -22,5 +22,9 @@ spring:
 
 app:
   auth:
-    jwt-secret: church-qt-local-dev-secret-key-that-is-long-enough-1234567890
-    access-token-expiration-seconds: 28800
+    jwt-secret: ${APP_JWT_SECRET:church-qt-local-dev-secret-key-that-is-long-enough-1234567890}
+    access-token-expiration-seconds: ${APP_ACCESS_TOKEN_EXPIRATION_SECONDS:28800}
+  admin-console:
+    enabled: ${APP_ADMIN_CONSOLE_ENABLED:false}
+  admin-frontend:
+    allowed-origins: ${APP_ADMIN_FRONTEND_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}

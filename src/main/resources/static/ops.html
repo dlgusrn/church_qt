@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QT Admin Portal</title>
+  <link rel="stylesheet" href="/ops.css" />
+</head>
+<body>
+<main class="shell">
+  <header class="topbar">
+    <div>
+      <p class="kicker">Church QT</p>
+      <h1>Admin Portal</h1>
+      <p class="subtitle">운영용 관리자 화면</p>
+    </div>
+    <div class="topbar-actions">
+      <button id="btnRefreshBootstrap">데이터 새로고침</button>
+      <button id="btnClearToken" class="ghost">로그아웃</button>
+    </div>
+  </header>
+
+  <section class="panel auth">
+    <h2>인증</h2>
+    <div class="row">
+      <label>아이디 <input id="loginId" type="text" placeholder="admin loginId" /></label>
+      <label>비밀번호 <input id="password" type="password" placeholder="password" /></label>
+      <button id="btnLogin">로그인</button>
+    </div>
+    <label>Access Token <textarea id="token" rows="2" placeholder="Bearer 제외. 토큰만 입력"></textarea></label>
+    <div class="status-row">
+      <span id="statusText">대기 중</span>
+    </div>
+  </section>
+
+  <section class="stats-grid">
+    <article class="stat"><h3>연도</h3><p id="statYears">-</p></article>
+    <article class="stat"><h3>반</h3><p id="statClasses">-</p></article>
+    <article class="stat"><h3>교사 풀</h3><p id="statTeachers">-</p></article>
+    <article class="stat"><h3>학생 풀</h3><p id="statStudents">-</p></article>
+    <article class="stat"><h3>운영 로그</h3><p id="statAudit">-</p></article>
+    <article class="stat"><h3>계약 버전</h3><p id="statSchema">-</p></article>
+  </section>
+
+  <div class="content-grid">
+    <section class="panel">
+      <h2>반 운영</h2>
+      <div class="row">
+        <label>조회 연도 <input id="queryYear" type="number" placeholder="2026" /></label>
+        <button id="btnLoadClasses">반 목록 조회</button>
+      </div>
+      <div id="classTableWrap" class="table-wrap"></div>
+    </section>
+
+    <section class="panel">
+      <h2>배정 작업</h2>
+      <div class="row">
+        <label>대상 반 ID <input id="targetYearClassId" type="number" placeholder="선택 또는 직접 입력" /></label>
+      </div>
+      <div class="row">
+        <label>검색어 <input id="poolKeyword" type="text" placeholder="이름 검색" /></label>
+        <label><input id="poolActiveOnly" type="checkbox" checked /> 활성만</label>
+        <label>limit <input id="poolLimit" type="number" value="20" min="5" max="200" /></label>
+      </div>
+      <div class="row">
+        <button id="btnLoadTeacherPool" class="ghost">교사 풀 조회</button>
+        <button id="btnLoadStudentPool" class="ghost">학생 풀 조회</button>
+        <button id="btnAssignTeachers">선택 교사 배정</button>
+        <button id="btnAssignStudents">선택 학생 배정</button>
+      </div>
+      <div class="pool-grid">
+        <div>
+          <h3>교사 풀</h3>
+          <div id="teacherPool" class="pool"></div>
+        </div>
+        <div>
+          <h3>학생 풀</h3>
+          <div id="studentPool" class="pool"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>운영 로그</h2>
+      <div class="row">
+        <label>limit <input id="auditLimit" type="number" value="100" /></label>
+        <label>offset <input id="auditOffset" type="number" value="0" /></label>
+        <label>actionType <input id="auditActionType" type="text" placeholder="예: MOVE_STUDENT" /></label>
+        <label>keyword <input id="auditKeyword" type="text" placeholder="검색어" /></label>
+        <button id="btnLoadAudit">로그 조회</button>
+      </div>
+      <pre id="auditResult"></pre>
+    </section>
+
+    <section class="panel">
+      <h2>응답 로그</h2>
+      <pre id="result"></pre>
+    </section>
+  </div>
+</main>
+
+<script src="/ops.js"></script>
+</body>
+</html>
