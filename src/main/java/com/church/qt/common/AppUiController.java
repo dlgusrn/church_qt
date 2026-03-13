@@ -11,6 +11,16 @@ public class AppUiController {
         return "redirect:/app/student";
     }
 
+    @GetMapping("/student")
+    public String studentEntry() {
+        return "redirect:/app/student";
+    }
+
+    @GetMapping("/teacher")
+    public String teacherEntry() {
+        return "redirect:/app/teacher/login";
+    }
+
     @GetMapping("/app/student")
     public String studentHome() {
         return "forward:/app.html";
@@ -23,6 +33,11 @@ public class AppUiController {
 
     @GetMapping("/app/teacher/login")
     public String teacherLogin() {
+        return "forward:/app.html";
+    }
+
+    @GetMapping("/app/teacher")
+    public String teacherHome() {
         return "forward:/app.html";
     }
 
