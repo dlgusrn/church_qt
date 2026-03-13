@@ -8,6 +8,7 @@ build/
 # Spring / misc
 HELP.md
 
+
 # STS
 .apt_generated/
 .classpath
@@ -50,3 +51,11 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# internal docs (not for repo)
+NEXT_TASK.md
+API_STATUS.md
+CODEX_PROMPT_TEMPLATE.md
+ADMIN_QA_CHECKLIST.md
+PROJECT_CONTEXT.md
+ADMIN_FRONTEND_HANDOFF.md
