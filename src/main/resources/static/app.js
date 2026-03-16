@@ -7,7 +7,7 @@
   const appLoading = document.getElementById("appLoading");
 
   const TEACHER_TOKEN_KEY = "qt_teacher_access_token";
-  const DEFAULT_STUDENT_YEAR = 2026;
+  const DEFAULT_STUDENT_YEAR = new Date().getFullYear();
   let cachedStudentCurrentYear = DEFAULT_STUDENT_YEAR;
   let pendingRequestCount = 0;
   const AUTO_ADVANCE_KEY = "qt_teacher_auto_advance_next_day";

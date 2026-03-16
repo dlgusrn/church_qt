@@ -26,6 +26,8 @@ assert_http_code "200" "$BASE_URL/health"
 assert_http_code "200" "$BASE_URL/db-health"
 assert_http_code "$EXPECT_ADMIN_STATUS" "$BASE_URL/admin"
 assert_http_code "$EXPECT_ADMIN_STATUS" "$BASE_URL/admin.html"
+assert_http_code "$EXPECT_ADMIN_STATUS" "$BASE_URL/ops"
+assert_http_code "$EXPECT_ADMIN_STATUS" "$BASE_URL/ops.html"
 
 cors_headers=$(curl -si -X OPTIONS "$BASE_URL/api/admin/years" \
   -H "Origin: $ADMIN_ORIGIN" \

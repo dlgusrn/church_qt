@@ -18,7 +18,11 @@ public class AdminConsoleAccessFilter extends OncePerRequestFilter {
             "/admin",
             "/admin.html",
             "/admin.js",
-            "/admin.css"
+            "/admin.css",
+            "/ops",
+            "/ops.html",
+            "/ops.js",
+            "/ops.css"
     );
 
     @Value("${app.admin-console.enabled:true}")

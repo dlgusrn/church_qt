@@ -35,19 +35,4 @@ public class TeacherAppController {
         teacherAppService.updateCheck(teacherId, request);
     }
 
-    @GetMapping("/{teacherId:\\d+}/students")
-    public List<TeacherStudentListResponse> getStudents(
-            @PathVariable Long teacherId,
-            @RequestParam Integer year
-    ) {
-        return teacherAppService.getStudents(teacherId, year);
-    }
-
-    @PostMapping("/{teacherId:\\d+}/check")
-    public void updateCheck(
-            @PathVariable Long teacherId,
-            @RequestBody TeacherCheckRequest request
-    ) {
-        teacherAppService.updateCheck(teacherId, request);
-    }
 }

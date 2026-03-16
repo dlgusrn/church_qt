@@ -28,3 +28,5 @@ app:
     enabled: ${APP_ADMIN_CONSOLE_ENABLED:false}
   admin-frontend:
     allowed-origins: ${APP_ADMIN_FRONTEND_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
+  app-frontend:
+    allowed-origins: ${APP_APP_FRONTEND_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}

@@ -39,8 +39,9 @@
 
 ## 4) 운영 안전 조건
 1. `/admin`, `/admin.html`는 404여야 함
-2. 관리자 분리 프론트 Origin만 CORS 허용
-3. 관리자 API는 JWT + ADMIN 권한 검증 통과 필요
+2. `/ops`, `/ops.html`는 404여야 함
+3. 관리자 분리 프론트 Origin만 CORS 허용
+4. 관리자 API는 JWT + ADMIN 권한 검증 통과 필요
 
 ## 5) 문제 시 롤백 기준
 1. `/health` 또는 `/db-health` 비정상

@@ -61,6 +61,8 @@ assert_json_response_contains "$BASE_URL/db-health" "\"db\"" "/db-health"
 # Admin static console should be hidden in production/staging.
 assert_http_code "404" "$BASE_URL/admin"
 assert_http_code "404" "$BASE_URL/admin.html"
+assert_http_code "404" "$BASE_URL/ops"
+assert_http_code "404" "$BASE_URL/ops.html"
 
 # CORS preflight check for split frontend.
 cors_headers=$(curl -si -X OPTIONS "$BASE_URL/api/admin/years" \

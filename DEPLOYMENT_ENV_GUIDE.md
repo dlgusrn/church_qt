@@ -11,6 +11,7 @@
 - `APP_ACCESS_TOKEN_EXPIRATION_SECONDS` (기본: `28800`)
 - `APP_ADMIN_CONSOLE_ENABLED` (기본: `false`)
 - `APP_ADMIN_FRONTEND_ALLOWED_ORIGINS` (콤마 구분)
+- `APP_APP_FRONTEND_ALLOWED_ORIGINS` (콤마 구분, `/api/students/**`, `/api/teacher/me/**`, `/api/teacher/check` CORS)
 
 ## 3) 로컬 개발 예시
 `.env.example` 복사 후 `.env` 생성:
@@ -21,6 +22,7 @@
 ## 4) 운영 권장값
 - `APP_ADMIN_CONSOLE_ENABLED=false`
 - `APP_ADMIN_FRONTEND_ALLOWED_ORIGINS=https://admin.your-domain.com`
+- `APP_APP_FRONTEND_ALLOWED_ORIGINS=https://app.your-domain.com`
 - `APP_JWT_SECRET`는 길고 랜덤한 값 사용
 - DB 계정은 최소 권한 원칙 적용
 
@@ -29,6 +31,7 @@
 2. 로그인/토큰 저장 방식이 `Bearer` 규격을 따르는지
 3. CSV 다운로드 시 `Content-Disposition` 헤더 접근 가능한지
 4. `/admin` 및 `/admin.html`가 운영에서 404인지
+5. `/ops` 및 `/ops.html`가 운영에서 404인지
 
 ## 6) CI 파이프라인
 - 파일: `.github/workflows/backend-ci.yml`
