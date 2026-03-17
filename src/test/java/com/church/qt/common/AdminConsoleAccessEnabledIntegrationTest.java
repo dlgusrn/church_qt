@@ -33,6 +33,13 @@ class AdminConsoleAccessEnabledIntegrationTest {
     }
 
     @Test
+    @DisplayName("admin-console enabled=true 일 때 /app/admin 라우트 접근이 가능하다")
+    void appAdminRouteAccessibleWhenEnabled() throws Exception {
+        HttpResponse<String> response = get("/app/admin");
+        assertEquals(200, response.statusCode());
+    }
+
+    @Test
     @DisplayName("admin-console enabled=true 일 때 정적 리소스 접근이 가능하다")
     void adminStaticAccessibleWhenEnabled() throws Exception {
         HttpResponse<String> html = get("/admin.html");
@@ -42,6 +49,13 @@ class AdminConsoleAccessEnabledIntegrationTest {
         assertEquals(200, html.statusCode());
         assertEquals(200, js.statusCode());
         assertEquals(200, css.statusCode());
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 favicon 요청은 404를 반환한다")
+    void faviconReturnsNotFound() throws Exception {
+        HttpResponse<String> response = get("/favicon.ico");
+        assertEquals(404, response.statusCode());
     }
 
     private HttpResponse<String> get(String path) throws Exception {

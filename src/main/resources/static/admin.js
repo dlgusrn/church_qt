@@ -1,21 +1,32 @@
 (function () {
   const result = document.getElementById("result");
-  const tokenInput = document.getElementById("token");
   const statusLine = document.getElementById("statusLine");
-  const yearClassList = document.getElementById("yearClassList");
+  const dashboardClassBoard = document.getElementById("dashboardClassBoard");
   const queryYearInput = document.getElementById("queryYear");
   const auditResult = document.getElementById("auditResult");
   const teacherPool = document.getElementById("teacherPool");
   const studentPool = document.getElementById("studentPool");
   const teacherPageInfo = document.getElementById("teacherPageInfo");
   const studentPageInfo = document.getElementById("studentPageInfo");
-  const undoHint = document.getElementById("undoHint");
-  const opsStatusCard = document.getElementById("opsStatusCard");
-  const opsUndoCard = document.getElementById("opsUndoCard");
-  const opsContractCard = document.getElementById("opsContractCard");
-  const opsRequestCard = document.getElementById("opsRequestCard");
+  const tabButtons = Array.from(document.querySelectorAll(".tab-btn"));
+  const tabPanels = Array.from(document.querySelectorAll(".tab-panel"));
+  const yearClassTabButtons = Array.from(document.querySelectorAll(".subtab-btn"));
+  const yearClassPanels = Array.from(document.querySelectorAll(".yearclass-panel"));
+  const poolTabButtons = Array.from(document.querySelectorAll("[data-pool-tab-target]"));
+  const poolPanels = Array.from(document.querySelectorAll(".pool-panel"));
+  const adminProtected = document.getElementById("adminProtected");
+  const adminAuthSection = document.getElementById("adminAuthSection");
+  const adminLoginMessage = document.getElementById("adminLoginMessage");
+  const btnAdminLogout = document.getElementById("btnAdminLogout");
+  const TEACHER_TOKEN_KEY = "qt_teacher_access_token";
+  const ADMIN_SESSION_TOKEN_KEY = "qt_admin_session_token";
+  let adminToken = "";
 
   let cachedYearClasses = [];
+  let cachedYears = [];
+  let dashboardYearValue = null;
+  let assignmentTeacherItems = [];
+  let assignmentStudentItems = [];
   let teacherPoolItems = [];
   let studentPoolItems = [];
   let teacherTotalCount = 0;
@@ -24,6 +35,8 @@
   let studentPage = 1;
   const selectedTeacherIds = new Set();
   const selectedStudentIds = new Set();
+  const selectedAssignmentTeacherIds = new Set();
+  const selectedAssignmentStudentIds = new Set();
   let lastUndoAction = null;
   const bootstrapUiState = {
     mode: "전체",
@@ -31,9 +44,22 @@
     loaded: "없음",
     request: "-"
   };
-
-  const savedToken = localStorage.getItem("qt_admin_token");
-  if (savedToken) tokenInput.value = savedToken;
+  const yearEditorState = {
+    mode: "create",
+    yearId: null
+  };
+  const classEditorState = {
+    mode: "create",
+    yearClassId: null
+  };
+  const teacherEditorState = {
+    mode: "create",
+    teacherId: null
+  };
+  const studentEditorState = {
+    mode: "create",
+    studentId: null
+  };
 
   const savedPoolKeyword = localStorage.getItem("qt_admin_pool_keyword");
   const savedPoolActiveOnly = localStorage.getItem("qt_admin_pool_active_only");
@@ -46,37 +72,252 @@
   const savedBootstrapIncludeActionTypes = localStorage.getItem("qt_admin_bootstrap_include_action_types");
   const savedBootstrapIncludePools = localStorage.getItem("qt_admin_bootstrap_include_pools");
   const savedBootstrapIncludeAuditLogs = localStorage.getItem("qt_admin_bootstrap_include_audit_logs");
-
-  if (savedPoolKeyword) document.getElementById("poolKeyword").value = savedPoolKeyword;
-  if (savedPoolActiveOnly) document.getElementById("poolActiveOnly").checked = savedPoolActiveOnly === "true";
-  if (savedPoolPageSize) document.getElementById("poolPageSize").value = savedPoolPageSize;
+  const savedActiveTab = localStorage.getItem("qt_admin_active_tab") || "dashboard";
+  const savedYearClassTab = localStorage.getItem("qt_admin_yearclass_tab") || "years";
+  const savedPoolTab = localStorage.getItem("qt_admin_pool_tab") || "teachers";
+  if (savedPoolKeyword) {
+    document.getElementById("teacherKeyword").value = savedPoolKeyword;
+    document.getElementById("studentKeyword").value = savedPoolKeyword;
+  }
+  if (savedPoolActiveOnly) {
+    const checked = savedPoolActiveOnly === "true";
+    document.getElementById("teacherActiveOnly").checked = checked;
+    document.getElementById("studentActiveOnly").checked = checked;
+  }
+  if (savedPoolPageSize) {
+    document.getElementById("teacherPageSize").value = savedPoolPageSize;
+    document.getElementById("studentPageSize").value = savedPoolPageSize;
+  }
   if (savedAuditActionType) document.getElementById("auditActionType").value = savedAuditActionType;
   if (savedAuditKeyword) document.getElementById("auditKeyword").value = savedAuditKeyword;
   if (savedAuditFromAt) document.getElementById("auditFromAt").value = savedAuditFromAt;
   if (savedAuditToAt) document.getElementById("auditToAt").value = savedAuditToAt;
-  if (savedBootstrapIncludeYearClasses) document.getElementById("bootstrapIncludeYearClasses").checked = savedBootstrapIncludeYearClasses === "true";
-  if (savedBootstrapIncludeActionTypes) document.getElementById("bootstrapIncludeActionTypes").checked = savedBootstrapIncludeActionTypes === "true";
-  if (savedBootstrapIncludePools) document.getElementById("bootstrapIncludePools").checked = savedBootstrapIncludePools === "true";
-  if (savedBootstrapIncludeAuditLogs) document.getElementById("bootstrapIncludeAuditLogs").checked = savedBootstrapIncludeAuditLogs === "true";
+
+  function readAdminToken() {
+    const teacherToken = String(localStorage.getItem(TEACHER_TOKEN_KEY) || "").trim();
+    if (teacherToken) {
+      sessionStorage.setItem(ADMIN_SESSION_TOKEN_KEY, teacherToken);
+      return teacherToken;
+    }
+    return String(sessionStorage.getItem(ADMIN_SESSION_TOKEN_KEY) || "").trim();
+  }
+
+  function persistAdminToken(token) {
+    const normalizedToken = String(token || "").trim();
+    adminToken = normalizedToken;
+    if (!normalizedToken) {
+      sessionStorage.removeItem(ADMIN_SESSION_TOKEN_KEY);
+      localStorage.removeItem(TEACHER_TOKEN_KEY);
+      return;
+    }
+    sessionStorage.setItem(ADMIN_SESSION_TOKEN_KEY, normalizedToken);
+    localStorage.setItem(TEACHER_TOKEN_KEY, normalizedToken);
+  }
+
+  function isAuthorizationMessage(message) {
+    const text = String(message || "").trim();
+    return text.includes("Authorization")
+      || text.includes("인증")
+      || text.includes("권한")
+      || text.includes("토큰")
+      || text.includes("로그인");
+  }
+
+  function isAuthorizationFailure(status, message) {
+    return status === 401 || status === 403 || isAuthorizationMessage(message);
+  }
+
+  adminToken = readAdminToken();
+
+  function setAdminAuthenticated(authenticated, teacherName) {
+    adminProtected.classList.toggle("hidden", !authenticated);
+    adminAuthSection.classList.toggle("hidden", authenticated);
+    if (btnAdminLogout) {
+      btnAdminLogout.classList.toggle("hidden", !authenticated);
+    }
+  }
+
+  function refreshVisibleTabData() {
+    const activeTab = localStorage.getItem("qt_admin_active_tab") || "dashboard";
+    if (!adminToken) return;
+    if (activeTab === "pool") {
+      const activePoolTab = localStorage.getItem("qt_admin_pool_tab") || "teachers";
+      setPoolTab(activePoolTab);
+      return;
+    }
+    if (activeTab === "assignment") {
+      if (!assignmentTeacherItems.length || !assignmentStudentItems.length) {
+        loadAssignmentPools().catch(function (e) {
+          render(e.message);
+        });
+      } else {
+        renderAssignmentManagement();
+      }
+    }
+  }
+
+  function setActiveTab(tabName) {
+    const safeTab = tabPanels.some(panel => panel.dataset.tabPanel === tabName) ? tabName : "dashboard";
+    tabButtons.forEach(button => {
+      const active = button.dataset.tabTarget === safeTab;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    tabPanels.forEach(panel => {
+      panel.classList.toggle("active", panel.dataset.tabPanel === safeTab);
+    });
+    localStorage.setItem("qt_admin_active_tab", safeTab);
+    if (safeTab === "assignment" && adminToken) {
+      if (!assignmentTeacherItems.length || !assignmentStudentItems.length) {
+        loadAssignmentPools().catch(function (e) {
+          render(e.message);
+        });
+      } else {
+        renderAssignmentManagement();
+      }
+    }
+    if (safeTab === "yearclass") {
+      setYearClassTab("years");
+    }
+    if (safeTab === "pool" && adminToken) {
+      setPoolTab("teachers");
+    } else if (safeTab === "pool") {
+      setPoolTab("teachers");
+    }
+    if (safeTab === "audit" && adminToken) {
+      const params = buildAuditParams(100);
+      api("/api/admin/audit-logs?" + params.toString(), { method: "GET" })
+        .then(function (body) {
+          renderAuditLogsResponse(body);
+        })
+        .catch(function (e) {
+          auditResult.innerHTML = `<div class="table-empty">${escapeHtml(e.message || "운영 로그 조회에 실패했습니다.")}</div>`;
+          render(e.message);
+        });
+    }
+  }
+
+  function setYearClassTab(tabName) {
+    const safeTab = yearClassPanels.some(panel => panel.dataset.yearclassPanel === tabName) ? tabName : "years";
+    yearClassTabButtons.forEach(button => {
+      const active = button.dataset.yearclassTabTarget === safeTab;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    yearClassPanels.forEach(panel => {
+      panel.classList.toggle("active", panel.dataset.yearclassPanel === safeTab);
+    });
+    localStorage.setItem("qt_admin_yearclass_tab", safeTab);
+  }
+
+  function setPoolTab(tabName) {
+    const safeTab = poolPanels.some(panel => panel.dataset.poolPanel === tabName) ? tabName : "teachers";
+    poolTabButtons.forEach(button => {
+      const active = button.dataset.poolTabTarget === safeTab;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    poolPanels.forEach(panel => {
+      panel.classList.toggle("active", panel.dataset.poolPanel === safeTab);
+    });
+    localStorage.setItem("qt_admin_pool_tab", safeTab);
+    if (adminToken) {
+      if (safeTab === "teachers") {
+        loadTeacherPool(teacherPage).catch(function (e) {
+          render(e.message);
+        });
+      } else {
+        loadStudentPool(studentPage).catch(function (e) {
+          render(e.message);
+        });
+      }
+    }
+  }
+
+  tabButtons.forEach(button => {
+    button.addEventListener("click", function () {
+      setActiveTab(button.dataset.tabTarget);
+    });
+  });
+
+  yearClassTabButtons.forEach(button => {
+    button.addEventListener("click", function () {
+      if (button.dataset.yearclassTabTarget) {
+        setYearClassTab(button.dataset.yearclassTabTarget);
+      }
+    });
+  });
+
+  poolTabButtons.forEach(button => {
+    button.addEventListener("click", function () {
+      setPoolTab(button.dataset.poolTabTarget);
+    });
+  });
+
+  setActiveTab(savedActiveTab);
+  setYearClassTab(savedYearClassTab);
+  setPoolTab(savedPoolTab);
+  setAdminAuthenticated(false);
 
   function render(data) {
+    if (!result) return;
     result.textContent = typeof data === "string" ? data : JSON.stringify(data, null, 2);
   }
 
   function setStatus(message) {
     statusLine.textContent = message;
-    if (opsStatusCard) opsStatusCard.textContent = message;
+  }
+
+  function setAdminLoginMessage(message) {
+    if (!adminLoginMessage) {
+      return;
+    }
+    const text = String(message || "").trim();
+    adminLoginMessage.textContent = text;
+    adminLoginMessage.classList.toggle("hidden", !text);
+  }
+
+  function extractErrorMessage(value, fallback) {
+    if (value == null) {
+      return fallback || "요청 처리 중 오류가 발생했습니다.";
+    }
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return fallback || "요청 처리 중 오류가 발생했습니다.";
+      }
+      try {
+        return extractErrorMessage(JSON.parse(trimmed), fallback);
+      } catch (_) {
+        return trimmed;
+      }
+    }
+    if (typeof value === "object") {
+      if (typeof value.message === "string" && value.message.trim()) {
+        return value.message.trim();
+      }
+      if (typeof value.error === "string" && value.error.trim()) {
+        return value.error.trim();
+      }
+    }
+    return fallback || "요청 처리 중 오류가 발생했습니다.";
   }
 
   function setUndoAction(action) {
     lastUndoAction = action;
     const undoMessage = action ? `되돌리기 가능: ${action.label}` : "되돌릴 작업 없음";
-    undoHint.textContent = undoMessage;
-    if (opsUndoCard) opsUndoCard.textContent = undoMessage;
+    const undoHint = document.getElementById("undoHint");
+    if (undoHint) {
+      undoHint.textContent = undoMessage;
+    }
   }
 
   function resetUiState() {
+    cachedYears = [];
     cachedYearClasses = [];
+    dashboardYearValue = null;
+    assignmentTeacherItems = [];
+    assignmentStudentItems = [];
     teacherPoolItems = [];
     studentPoolItems = [];
     teacherTotalCount = 0;
@@ -85,25 +326,31 @@
     studentPage = 1;
     selectedTeacherIds.clear();
     selectedStudentIds.clear();
+    selectedAssignmentTeacherIds.clear();
+    selectedAssignmentStudentIds.clear();
     setUndoAction(null);
-    yearClassList.innerHTML = "";
     teacherPool.innerHTML = "";
     studentPool.innerHTML = "";
     teacherPageInfo.textContent = "0 / 0";
     studentPageInfo.textContent = "0 / 0";
-    auditResult.textContent = "";
+    auditResult.innerHTML = "";
     bootstrapUiState.loaded = "없음";
     bootstrapUiState.contract = "-";
     bootstrapUiState.request = "-";
     updateBootstrapSummaryHint();
+    renderYearManagement();
+    renderClassManagement();
+    renderAssignmentManagement();
   }
 
   function clearTokenAndReset(message) {
-    localStorage.removeItem("qt_admin_token");
-    tokenInput.value = "";
+    persistAdminToken("");
     resetUiState();
-    setStatus("토큰 만료/무효");
-    render(message);
+    setAdminAuthenticated(false);
+    setAdminLoginMessage(message || "");
+    setActiveTab("dashboard");
+    setStatus(message ? "토큰 만료/무효" : "로그아웃됨");
+    render(message || "로그아웃되었습니다.");
   }
 
   function handleBootstrapFailure(prefix, error) {
@@ -120,7 +367,7 @@
     el.addEventListener("change", function () {
       localStorage.setItem(storageKey, String(el.checked));
       updateBootstrapModeHint();
-      if (tokenInput.value.trim()) {
+      if (adminToken) {
         loadBootstrapAndDefaultYear().catch(function (e) {
           handleBootstrapFailure("include 옵션 적용 실패", e);
         });
@@ -129,10 +376,10 @@
   }
 
   function updateBootstrapModeHint() {
-    const includeYearClasses = document.getElementById("bootstrapIncludeYearClasses").checked;
-    const includeActionTypes = document.getElementById("bootstrapIncludeActionTypes").checked;
-    const includePools = document.getElementById("bootstrapIncludePools").checked;
-    const includeAuditLogs = document.getElementById("bootstrapIncludeAuditLogs").checked;
+    const includeYearClasses = true;
+    const includeActionTypes = true;
+    const includePools = false;
+    const includeAuditLogs = false;
     const isFull = includeYearClasses && includeActionTypes && includePools && includeAuditLogs;
     const isLite = includeYearClasses && includeActionTypes && !includePools && !includeAuditLogs;
     const mode = isFull ? "전체" : (isLite ? "경량" : "커스텀");
@@ -166,24 +413,13 @@
   function updateBootstrapSummaryHint() {
     const summaryText =
       `bootstrap 요약: 모드=${bootstrapUiState.mode} / 계약=${bootstrapUiState.contract} / 최근 로드=${bootstrapUiState.loaded} / 요청=${bootstrapUiState.request}`;
-    document.getElementById("bootstrapSummaryHint").textContent = summaryText;
-    if (opsContractCard) opsContractCard.textContent = bootstrapUiState.contract;
-    if (opsRequestCard) opsRequestCard.textContent = bootstrapUiState.request;
+    const summaryEl = document.getElementById("bootstrapSummaryHint");
+    if (summaryEl) {
+      summaryEl.textContent = summaryText;
+    }
   }
 
   function applyBootstrapIncludePreset(preset) {
-    const includeYearClassesEl = document.getElementById("bootstrapIncludeYearClasses");
-    const includeActionTypesEl = document.getElementById("bootstrapIncludeActionTypes");
-    const includePoolsEl = document.getElementById("bootstrapIncludePools");
-    const includeAuditLogsEl = document.getElementById("bootstrapIncludeAuditLogs");
-    includeYearClassesEl.checked = !!preset.includeYearClasses;
-    includeActionTypesEl.checked = !!preset.includeActionTypes;
-    includePoolsEl.checked = !!preset.includePools;
-    includeAuditLogsEl.checked = !!preset.includeAuditLogs;
-    localStorage.setItem("qt_admin_bootstrap_include_year_classes", String(includeYearClassesEl.checked));
-    localStorage.setItem("qt_admin_bootstrap_include_action_types", String(includeActionTypesEl.checked));
-    localStorage.setItem("qt_admin_bootstrap_include_pools", String(includePoolsEl.checked));
-    localStorage.setItem("qt_admin_bootstrap_include_audit_logs", String(includeAuditLogsEl.checked));
     updateBootstrapModeHint();
   }
 
@@ -193,6 +429,609 @@
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
+  }
+
+  function formatDateTime(value) {
+    if (!value) return "-";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleString("ko-KR", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  }
+
+  function formatContactNumber(value) {
+    const digits = String(value || "").replace(/[^0-9]/g, "");
+    if (!digits) return "-";
+    if (digits.length === 11) {
+      return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+    }
+    if (digits.length === 10) {
+      if (digits.startsWith("02")) {
+        return `${digits.slice(0, 2)}-${digits.slice(2, 6)}-${digits.slice(6)}`;
+      }
+      return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+    }
+    if (digits.length === 9 && digits.startsWith("02")) {
+      return `${digits.slice(0, 2)}-${digits.slice(2, 5)}-${digits.slice(5)}`;
+    }
+    return digits;
+  }
+
+  function formatBirthDate(value) {
+    const digits = String(value || "").replace(/[^0-9]/g, "");
+    if (!digits) return "-";
+    if (digits.length === 8) {
+      return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
+    }
+    if (digits.length === 6) {
+      return `${digits.slice(0, 2)}-${digits.slice(2, 4)}-${digits.slice(4)}`;
+    }
+    return digits;
+  }
+
+  function renderAuditLogsResponse(body) {
+    if (!auditResult) return;
+
+    const items = body && Array.isArray(body.items) ? body.items : [];
+    const totalCount = Number(body && body.totalCount || 0);
+    const limit = Number(body && body.limit || 0);
+    const offset = Number(body && body.offset || 0);
+
+    if (!items.length) {
+      auditResult.innerHTML = `<div class="table-empty">조회된 운영 로그가 없습니다. total=${escapeHtml(totalCount)} / limit=${escapeHtml(limit)} / offset=${escapeHtml(offset)}</div>`;
+      return;
+    }
+
+    auditResult.innerHTML = `
+      <table class="manager-table">
+        <thead>
+          <tr>
+            <th>No</th>
+            <th>ID</th>
+            <th>작업시각</th>
+            <th>담당자</th>
+            <th>액션</th>
+            <th>상세</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map((row, index) => {
+            const data = row && row.data ? row.data : {};
+            return `
+              <tr>
+                <td data-label="No">${offset + index + 1}</td>
+                <td data-label="ID">${escapeHtml(data.id || "-")}</td>
+                <td data-label="작업시각">${escapeHtml(formatDateTime(data.created_at))}</td>
+                <td data-label="담당자">${escapeHtml(data.actor_teacher_id || "-")}</td>
+                <td data-label="액션"><span class="badge-soft">${escapeHtml(data.action_type || "-")}</span></td>
+                <td data-label="상세">${escapeHtml(data.detail || "-")}</td>
+              </tr>
+            `;
+          }).join("")}
+        </tbody>
+      </table>
+    `;
+  }
+
+  function normalizeBirthDateInput(value) {
+    const digits = String(value || "").replace(/[^0-9]/g, "");
+    if (!digits) return "";
+    if (digits.length !== 8) {
+      throw new Error("생년월일은 8자리 숫자로 입력해야 합니다.");
+    }
+    return digits;
+  }
+
+  function getActiveYearValue() {
+    const activeYear = cachedYears.find(year => !!year.active);
+    if (activeYear && Number.isFinite(Number(activeYear.yearValue))) {
+      return Number(activeYear.yearValue);
+    }
+    return null;
+  }
+
+  function syncYearOptions() {
+    const options = cachedYears.map(year => `<option value="${year.yearValue}">${year.yearValue}년</option>`).join("");
+    const yearFilter = document.getElementById("classManagementYearFilter");
+    const classYearSelect = document.getElementById("classEditorYearValue");
+    yearFilter.innerHTML = options;
+    classYearSelect.innerHTML = options;
+
+    if (!yearFilter.value && cachedYears[0]) {
+      yearFilter.value = String(cachedYears[0].yearValue);
+    }
+    if (!classYearSelect.value && cachedYears[0]) {
+      classYearSelect.value = String(cachedYears[0].yearValue);
+    }
+  }
+
+  function currentAssignmentYearClassId() {
+    const rawValue = String(document.getElementById("assignmentYearClassSelect").value || "").trim();
+    if (!rawValue) return null;
+    const value = Number(rawValue);
+    return Number.isFinite(value) && value > 0 ? value : null;
+  }
+
+  function currentAssignmentYearClass() {
+    const yearClassId = currentAssignmentYearClassId();
+    return cachedYearClasses.find(item => item.yearClassId === yearClassId) || null;
+  }
+
+  function syncAssignmentYearClassOptions() {
+    const select = document.getElementById("assignmentYearClassSelect");
+    const moveTargetSelect = document.getElementById("assignmentMoveTargetYearClassSelect");
+    const options = cachedYearClasses.map(item =>
+      `<option value="${item.yearClassId}">${escapeHtml(item.yearValue)}년 ${escapeHtml(item.className)}</option>`
+    ).join("");
+    select.innerHTML = options;
+    moveTargetSelect.innerHTML = options;
+
+    const current = currentAssignmentYearClassId();
+    if (current && cachedYearClasses.some(item => item.yearClassId === current)) {
+      setAssignmentTarget(current);
+    } else if (cachedYearClasses[0]) {
+      setAssignmentTarget(cachedYearClasses[0].yearClassId);
+    } else {
+      document.getElementById("assignTeacherYearClassId").value = "";
+      document.getElementById("assignStudentYearClassId").value = "";
+    }
+
+    const moveCurrent = Number(moveTargetSelect.value);
+    const currentYearClassId = Number(select.value);
+    const fallbackTarget = cachedYearClasses.find(item => item.yearClassId !== currentYearClassId) || cachedYearClasses[0];
+    if (moveCurrent && cachedYearClasses.some(item => item.yearClassId === moveCurrent && item.yearClassId !== currentYearClassId)) {
+      moveTargetSelect.value = String(moveCurrent);
+    } else if (fallbackTarget) {
+      moveTargetSelect.value = String(fallbackTarget.yearClassId);
+    }
+  }
+
+  function renderAssignmentManagement() {
+    const teacherContainer = document.getElementById("assignmentTeacherList");
+    const studentContainer = document.getElementById("assignmentStudentList");
+    const summary = document.getElementById("assignmentTargetSummary");
+    const yearClass = currentAssignmentYearClass();
+    const teacherKeyword = document.getElementById("assignmentTeacherKeyword").value.trim().toLowerCase();
+    const studentKeyword = document.getElementById("assignmentStudentKeyword").value.trim().toLowerCase();
+    const teacherAssignedOnly = document.getElementById("assignmentTeacherAssignedOnly").checked;
+    const studentAssignedOnly = document.getElementById("assignmentStudentAssignedOnly").checked;
+
+    if (!yearClass) {
+      if (summary) summary.textContent = "선택한 반 정보가 없습니다.";
+      teacherContainer.innerHTML = '<div class="table-empty">반을 먼저 선택해 주세요.</div>';
+      studentContainer.innerHTML = '<div class="table-empty">반을 먼저 선택해 주세요.</div>';
+      return;
+    }
+
+    const assignedTeacherIds = new Set((yearClass.teachers || []).map(item => item.teacherId));
+    const assignedStudentIds = new Set((yearClass.students || []).map(item => item.studentId));
+    if (summary) {
+      summary.textContent = `${yearClass.yearValue}년 ${yearClass.className} · 교사 ${(yearClass.teachers || []).length}명 · 학생 ${(yearClass.students || []).length}명`;
+    }
+
+    const filteredTeachers = assignmentTeacherItems
+      .filter(item => !teacherAssignedOnly || assignedTeacherIds.has(item.teacherId))
+      .filter(item => !teacherKeyword
+        || String(item.teacherName || "").toLowerCase().includes(teacherKeyword)
+        || String(item.loginId || "").toLowerCase().includes(teacherKeyword))
+      .slice()
+      .sort((a, b) => Number(assignedTeacherIds.has(b.teacherId)) - Number(assignedTeacherIds.has(a.teacherId)) || String(a.teacherName || "").localeCompare(String(b.teacherName || ""), "ko"));
+    const filteredStudents = assignmentStudentItems
+      .filter(item => !studentAssignedOnly || assignedStudentIds.has(item.studentId))
+      .filter(item => !studentKeyword || String(item.studentName || "").toLowerCase().includes(studentKeyword))
+      .slice()
+      .sort((a, b) => Number(assignedStudentIds.has(b.studentId)) - Number(assignedStudentIds.has(a.studentId)) || String(a.studentName || "").localeCompare(String(b.studentName || ""), "ko"));
+
+    teacherContainer.innerHTML = filteredTeachers.length ? `
+      <table class="manager-table">
+        <thead>
+          <tr>
+            <th class="selection-cell">선택</th>
+            <th>No</th>
+            <th>코드</th>
+            <th>이름</th>
+            <th>로그인 ID</th>
+            <th>역할</th>
+            <th>상태</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filteredTeachers.map((item, index) => `
+            <tr>
+              <td data-label="선택" class="selection-cell">
+                <input class="table-checkbox assignmentTeacherSelect" type="checkbox" value="${item.teacherId}" ${selectedAssignmentTeacherIds.has(item.teacherId) ? "checked" : ""} />
+              </td>
+              <td data-label="No">${index + 1}</td>
+              <td data-label="코드">${escapeHtml(item.teacherId)}</td>
+              <td data-label="이름">${escapeHtml(item.teacherName || "-")}</td>
+              <td data-label="로그인 ID">${escapeHtml(item.loginId || "-")}</td>
+              <td data-label="역할">${escapeHtml(item.role || "-")}</td>
+              <td data-label="상태"><span class="assignment-status-pill ${assignedTeacherIds.has(item.teacherId) ? "assigned" : "unassigned"}">${assignedTeacherIds.has(item.teacherId) ? "배정됨" : "미배정"}</span></td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    ` : '<div class="table-empty">조건에 맞는 교사가 없습니다.</div>';
+
+    studentContainer.innerHTML = filteredStudents.length ? `
+      <table class="manager-table">
+        <thead>
+          <tr>
+            <th class="selection-cell">선택</th>
+            <th>No</th>
+            <th>코드</th>
+            <th>이름</th>
+            <th>학년</th>
+            <th>연락처</th>
+            <th>상태</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filteredStudents.map((item, index) => `
+            <tr>
+              <td data-label="선택" class="selection-cell">
+                <input class="table-checkbox assignmentStudentSelect" type="checkbox" value="${item.studentId}" ${selectedAssignmentStudentIds.has(item.studentId) ? "checked" : ""} />
+              </td>
+              <td data-label="No">${index + 1}</td>
+              <td data-label="코드">${escapeHtml(item.studentId)}</td>
+              <td data-label="이름">${escapeHtml(item.studentName || "-")}</td>
+              <td data-label="학년">${escapeHtml(item.schoolGrade || "-")}학년</td>
+              <td data-label="연락처">${escapeHtml(formatContactNumber(item.contactNumber))}</td>
+              <td data-label="상태"><span class="assignment-status-pill ${assignedStudentIds.has(item.studentId) ? "assigned" : "unassigned"}">${assignedStudentIds.has(item.studentId) ? "배정됨" : "미배정"}</span></td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    ` : '<div class="table-empty">조건에 맞는 학생이 없습니다.</div>';
+
+    teacherContainer.querySelectorAll(".assignmentTeacherSelect").forEach(checkbox => {
+      checkbox.addEventListener("change", function () {
+        const teacherId = Number(checkbox.value);
+        if (checkbox.checked) selectedAssignmentTeacherIds.add(teacherId);
+        else selectedAssignmentTeacherIds.delete(teacherId);
+      });
+    });
+
+    studentContainer.querySelectorAll(".assignmentStudentSelect").forEach(checkbox => {
+      checkbox.addEventListener("change", function () {
+        const studentId = Number(checkbox.value);
+        if (checkbox.checked) selectedAssignmentStudentIds.add(studentId);
+        else selectedAssignmentStudentIds.delete(studentId);
+      });
+    });
+  }
+
+  async function loadAssignmentPools() {
+    const [teachersResponse, studentsResponse] = await Promise.all([
+      api("/api/admin/teachers?activeOnly=true&limit=200&offset=0", { method: "GET" }),
+      api("/api/admin/students?activeOnly=true&limit=200&offset=0", { method: "GET" })
+    ]);
+    assignmentTeacherItems = Array.isArray(teachersResponse.items) ? teachersResponse.items : [];
+    assignmentStudentItems = Array.isArray(studentsResponse.items) ? studentsResponse.items : [];
+    renderAssignmentManagement();
+  }
+
+  function renderYearManagement() {
+    const container = document.getElementById("yearManagementList");
+    if (!cachedYears.length) {
+      container.innerHTML = '<div class="table-empty">등록된 연도가 없습니다.</div>';
+      return;
+    }
+
+    container.innerHTML = `
+      <table class="manager-table">
+        <thead>
+          <tr>
+            <th>No</th>
+            <th>연도</th>
+            <th>활성</th>
+            <th>수정일시</th>
+            <th>생성일시</th>
+            <th>관리</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${cachedYears.map((year, index) => `
+            <tr>
+              <td data-label="No">${index + 1}</td>
+              <td data-label="연도">${escapeHtml(year.yearValue)}년</td>
+              <td data-label="활성"><span class="badge-soft">${year.active ? "활성" : "비활성"}</span></td>
+              <td data-label="수정일시">${escapeHtml(formatDateTime(year.updatedAt))}</td>
+              <td data-label="생성일시">${escapeHtml(formatDateTime(year.createdAt))}</td>
+              <td data-label="관리">
+                <div class="row-actions">
+                  <button class="ghost btnEditYearRow" type="button" data-year-id="${year.id}">수정</button>
+                </div>
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+
+    container.querySelectorAll(".btnEditYearRow").forEach(button => {
+      button.addEventListener("click", function () {
+        const target = cachedYears.find(item => item.id === Number(button.dataset.yearId));
+        if (!target) return;
+        yearEditorState.mode = "edit";
+        yearEditorState.yearId = target.id;
+        document.getElementById("yearEditorTitle").textContent = "연도 수정";
+        document.getElementById("yearEditorValue").value = String(target.yearValue || "");
+        document.getElementById("yearEditorValue").disabled = true;
+        document.getElementById("yearEditorActive").checked = !!target.active;
+        document.getElementById("classEditorPanel").classList.add("hidden");
+        setYearClassTab("years");
+        document.getElementById("yearEditorPanel").classList.remove("hidden");
+      });
+    });
+  }
+
+  function renderClassManagement() {
+    const container = document.getElementById("classManagementList");
+    const filterYear = Number(document.getElementById("classManagementYearFilter").value);
+    const rows = cachedYearClasses
+      .filter(item => !Number.isFinite(filterYear) || item.yearValue === filterYear)
+      .slice()
+      .sort((a, b) => {
+        if (a.yearValue !== b.yearValue) return b.yearValue - a.yearValue;
+        return a.sortOrder - b.sortOrder;
+      });
+
+    if (!rows.length) {
+      container.innerHTML = '<div class="table-empty">선택한 연도에 등록된 반이 없습니다.</div>';
+      return;
+    }
+
+    container.innerHTML = `
+      <table class="manager-table">
+        <thead>
+          <tr>
+            <th>No</th>
+            <th>연도</th>
+            <th>반 이름</th>
+            <th>정렬</th>
+            <th>상태</th>
+            <th>수정일시</th>
+            <th>생성일시</th>
+            <th>관리</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((item, index) => `
+            <tr>
+              <td data-label="No">${index + 1}</td>
+              <td data-label="연도">${escapeHtml(item.yearValue)}년</td>
+              <td data-label="반 이름">${escapeHtml(item.className)}</td>
+              <td data-label="정렬">${escapeHtml(item.sortOrder)}</td>
+              <td data-label="상태"><span class="badge-soft">${item.active ? "활성" : "비활성"}</span></td>
+              <td data-label="수정일시">${escapeHtml(formatDateTime(item.updatedAt))}</td>
+              <td data-label="생성일시">${escapeHtml(formatDateTime(item.createdAt))}</td>
+              <td data-label="관리">
+                <div class="row-actions">
+                  <button class="ghost btnEditClassRow" type="button" data-year-class-id="${item.yearClassId}">수정</button>
+                </div>
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+
+    container.querySelectorAll(".btnEditClassRow").forEach(button => {
+      button.addEventListener("click", function () {
+        const target = cachedYearClasses.find(item => item.yearClassId === Number(button.dataset.yearClassId));
+        if (!target) return;
+        classEditorState.mode = "edit";
+        classEditorState.yearClassId = target.yearClassId;
+        document.getElementById("classEditorTitle").textContent = "반 수정";
+        document.getElementById("classEditorYearValue").value = String(target.yearValue || "");
+        document.getElementById("classEditorYearValue").disabled = true;
+        document.getElementById("classEditorName").value = target.className || "";
+        document.getElementById("classEditorSortOrder").value = String(target.sortOrder || "");
+        document.getElementById("classEditorActive").checked = !!target.active;
+        document.getElementById("yearEditorPanel").classList.add("hidden");
+        setYearClassTab("classes");
+        document.getElementById("classEditorPanel").classList.remove("hidden");
+      });
+    });
+  }
+
+  function openCreateYearEditor() {
+    yearEditorState.mode = "create";
+    yearEditorState.yearId = null;
+    document.getElementById("yearEditorTitle").textContent = "연도 추가";
+    document.getElementById("yearEditorValue").disabled = false;
+    document.getElementById("yearEditorValue").value = "";
+    document.getElementById("yearEditorActive").checked = true;
+    document.getElementById("classEditorPanel").classList.add("hidden");
+    setYearClassTab("years");
+    document.getElementById("yearEditorPanel").classList.remove("hidden");
+  }
+
+  function openCreateClassEditor() {
+    classEditorState.mode = "create";
+    classEditorState.yearClassId = null;
+    document.getElementById("classEditorTitle").textContent = "반 추가";
+    document.getElementById("classEditorYearValue").disabled = false;
+    document.getElementById("classEditorYearValue").value = document.getElementById("classManagementYearFilter").value || "";
+    document.getElementById("classEditorName").value = "";
+    document.getElementById("classEditorSortOrder").value = "";
+    document.getElementById("classEditorActive").checked = true;
+    document.getElementById("yearEditorPanel").classList.add("hidden");
+    setYearClassTab("classes");
+    document.getElementById("classEditorPanel").classList.remove("hidden");
+  }
+
+  async function reloadClassManagementForSelectedYear() {
+    const selectedYear = Number(document.getElementById("classManagementYearFilter").value) || getActiveYearValue();
+    if (!Number.isFinite(selectedYear)) {
+      renderClassManagement();
+      return;
+    }
+    queryYearInput.value = String(selectedYear);
+    await refreshYearClasses();
+  }
+
+  function renderTeacherManagement() {
+    const container = document.getElementById("teacherManagementList");
+    if (!teacherPoolItems.length) {
+      container.innerHTML = '<div class="table-empty">조회된 교사가 없습니다.</div>';
+      return;
+    }
+
+    const sortedTeacherItems = teacherPoolItems
+      .slice()
+      .sort((a, b) => {
+        const rolePriority = (role) => role === "ADMIN" ? 0 : 1;
+        const byRole = rolePriority(a.role) - rolePriority(b.role);
+        if (byRole !== 0) return byRole;
+        return String(a.teacherName || "").localeCompare(String(b.teacherName || ""), "ko");
+      });
+
+    container.innerHTML = `
+      <table class="manager-table">
+        <thead>
+          <tr>
+            <th>No</th>
+            <th>코드</th>
+            <th>로그인 ID</th>
+            <th>이름</th>
+            <th>역할</th>
+            <th>연락처</th>
+            <th>생년월일</th>
+            <th>상태</th>
+            <th>관리</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sortedTeacherItems.map((item, index) => `
+            <tr>
+              <td data-label="No">${index + 1}</td>
+              <td data-label="코드">${escapeHtml(item.teacherId)}</td>
+              <td data-label="로그인 ID">${escapeHtml(item.loginId || "-")}</td>
+              <td data-label="이름">${escapeHtml(item.teacherName || "-")}</td>
+              <td data-label="역할"><span class="badge-soft">${escapeHtml(item.role || "-")}</span></td>
+              <td data-label="연락처">${escapeHtml(formatContactNumber(item.contactNumber))}</td>
+              <td data-label="생년월일">${escapeHtml(formatBirthDate(item.birthDate))}</td>
+              <td data-label="상태"><span class="badge-soft">${item.active ? "활성" : "비활성"}</span></td>
+              <td data-label="관리"><button class="ghost btnEditTeacherRow" type="button" data-teacher-id="${item.teacherId}">수정</button></td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+
+    container.querySelectorAll(".btnEditTeacherRow").forEach(button => {
+      button.addEventListener("click", function () {
+        const target = teacherPoolItems.find(item => item.teacherId === Number(button.dataset.teacherId));
+        if (!target) return;
+        teacherEditorState.mode = "edit";
+        teacherEditorState.teacherId = target.teacherId;
+        document.getElementById("teacherEditorTitle").textContent = "교사 수정";
+        document.getElementById("teacherEditorLoginId").value = target.loginId || "";
+        document.getElementById("teacherEditorLoginId").disabled = true;
+        document.getElementById("teacherEditorName").value = target.teacherName || "";
+        document.getElementById("teacherEditorPassword").value = "";
+        document.getElementById("teacherEditorPassword").placeholder = "변경할 때만 입력";
+        document.getElementById("teacherEditorContactNumber").value = formatContactNumber(target.contactNumber).replace(/^-$/, "");
+        document.getElementById("teacherEditorBirthDate").value = String(target.birthDate || "");
+        document.getElementById("teacherEditorRole").value = target.role || "TEACHER";
+        document.getElementById("teacherEditorActive").checked = !!target.active;
+        document.getElementById("studentEditorPanel").classList.add("hidden");
+        document.getElementById("teacherEditorPanel").classList.remove("hidden");
+      });
+    });
+  }
+
+  function renderStudentManagement() {
+    const container = document.getElementById("studentManagementList");
+    if (!studentPoolItems.length) {
+      container.innerHTML = '<div class="table-empty">조회된 학생이 없습니다.</div>';
+      return;
+    }
+
+    container.innerHTML = `
+      <table class="manager-table">
+        <thead>
+          <tr>
+            <th>No</th>
+            <th>코드</th>
+            <th>이름</th>
+            <th>학년</th>
+            <th>연락처</th>
+            <th>생년월일</th>
+            <th>상태</th>
+            <th>관리</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${studentPoolItems.map((item, index) => `
+            <tr>
+              <td data-label="No">${index + 1}</td>
+              <td data-label="코드">${escapeHtml(item.studentId)}</td>
+              <td data-label="이름">${escapeHtml(item.studentName || "-")}</td>
+              <td data-label="학년">${escapeHtml(item.schoolGrade || "-")}학년</td>
+              <td data-label="연락처">${escapeHtml(formatContactNumber(item.contactNumber))}</td>
+              <td data-label="생년월일">${escapeHtml(formatBirthDate(item.birthDate))}</td>
+              <td data-label="상태"><span class="badge-soft">${item.active ? "활성" : "비활성"}</span></td>
+              <td data-label="관리"><button class="ghost btnEditStudentRow" type="button" data-student-id="${item.studentId}">수정</button></td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+
+    container.querySelectorAll(".btnEditStudentRow").forEach(button => {
+      button.addEventListener("click", function () {
+        const target = studentPoolItems.find(item => item.studentId === Number(button.dataset.studentId));
+        if (!target) return;
+        studentEditorState.mode = "edit";
+        studentEditorState.studentId = target.studentId;
+        document.getElementById("studentEditorTitle").textContent = "학생 수정";
+        document.getElementById("studentEditorName").value = target.studentName || "";
+        document.getElementById("studentEditorSchoolGrade").value = target.schoolGrade == null ? "" : String(target.schoolGrade);
+        document.getElementById("studentEditorContactNumber").value = formatContactNumber(target.contactNumber).replace(/^-$/, "");
+        document.getElementById("studentEditorBirthDate").value = String(target.birthDate || "");
+        document.getElementById("studentEditorActive").checked = !!target.active;
+        document.getElementById("teacherEditorPanel").classList.add("hidden");
+        document.getElementById("studentEditorPanel").classList.remove("hidden");
+      });
+    });
+  }
+
+  function openCreateTeacherEditor() {
+    teacherEditorState.mode = "create";
+    teacherEditorState.teacherId = null;
+    document.getElementById("teacherEditorTitle").textContent = "교사 추가";
+    document.getElementById("teacherEditorLoginId").disabled = false;
+    document.getElementById("teacherEditorLoginId").value = "";
+    document.getElementById("teacherEditorName").value = "";
+    document.getElementById("teacherEditorPassword").value = "";
+    document.getElementById("teacherEditorPassword").placeholder = "초기 비밀번호";
+    document.getElementById("teacherEditorContactNumber").value = "";
+    document.getElementById("teacherEditorBirthDate").value = "";
+    document.getElementById("teacherEditorRole").value = "TEACHER";
+    document.getElementById("teacherEditorActive").checked = true;
+    document.getElementById("studentEditorPanel").classList.add("hidden");
+    document.getElementById("teacherEditorPanel").classList.remove("hidden");
+  }
+
+  function openCreateStudentEditor() {
+    studentEditorState.mode = "create";
+    studentEditorState.studentId = null;
+    document.getElementById("studentEditorTitle").textContent = "학생 추가";
+    document.getElementById("studentEditorName").value = "";
+    document.getElementById("studentEditorSchoolGrade").value = "";
+    document.getElementById("studentEditorContactNumber").value = "";
+    document.getElementById("studentEditorBirthDate").value = "";
+    document.getElementById("studentEditorActive").checked = true;
+    document.getElementById("teacherEditorPanel").classList.add("hidden");
+    document.getElementById("studentEditorPanel").classList.remove("hidden");
   }
 
   function parseIds(text) {
@@ -215,22 +1054,40 @@
   }
 
   function tokenOrThrow() {
-    const token = tokenInput.value.trim();
+    const token = String(adminToken || "").trim();
     if (!token) throw new Error("토큰이 비어 있습니다.");
     return token;
   }
 
   function getTargetYearClassId() {
-    const value = Number(document.getElementById("assignTeacherYearClassId").value || document.getElementById("assignStudentYearClassId").value);
-    if (!Number.isFinite(value)) throw new Error("배정 대상 yearClassId를 입력하세요.");
+    const teacherValue = String(document.getElementById("assignTeacherYearClassId").value || "").trim();
+    const studentValue = String(document.getElementById("assignStudentYearClassId").value || "").trim();
+    const selectValue = String(document.getElementById("assignmentYearClassSelect").value || "").trim();
+    const rawValue = teacherValue || studentValue || selectValue;
+    if (!rawValue) throw new Error("배정 대상 yearClassId를 입력하세요.");
+    const value = Number(rawValue);
+    if (!Number.isFinite(value) || value <= 0) throw new Error("배정 대상 yearClassId를 입력하세요.");
     return value;
   }
 
   function setAssignmentTarget(yearClassId) {
     document.getElementById("assignTeacherYearClassId").value = String(yearClassId);
     document.getElementById("assignStudentYearClassId").value = String(yearClassId);
-    document.getElementById("queryYearClassId").value = String(yearClassId);
+    const assignmentSelect = document.getElementById("assignmentYearClassSelect");
+    if (assignmentSelect && yearClassId) {
+      assignmentSelect.value = String(yearClassId);
+    }
+    const moveTargetSelect = document.getElementById("assignmentMoveTargetYearClassSelect");
+    if (moveTargetSelect) {
+      const fallbackTarget = cachedYearClasses.find(item => item.yearClassId !== yearClassId);
+      if (fallbackTarget) {
+        moveTargetSelect.value = String(fallbackTarget.yearClassId);
+      }
+    }
+    selectedAssignmentTeacherIds.clear();
+    selectedAssignmentStudentIds.clear();
     setStatus("작업 대상 반 설정: " + yearClassId);
+    renderAssignmentManagement();
   }
 
   async function runAndRefresh(actionPromiseFactory) {
@@ -271,10 +1128,35 @@
 
     if (!response.ok) {
       setStatus("요청 실패");
-      throw new Error(typeof body === "string" ? body : JSON.stringify(body));
+      const message = extractErrorMessage(body);
+      if (isAuthorizationFailure(response.status, message)) {
+        clearTokenAndReset(message || "인증이 만료되었습니다. 다시 로그인해 주세요.");
+      }
+      throw new Error(message);
     }
     setStatus("요청 성공");
     return body;
+  }
+
+  async function validateAdminSession() {
+    const token = String(adminToken || "").trim();
+    if (!token) {
+      setAdminAuthenticated(false);
+      return null;
+    }
+
+    try {
+      const response = await api("/api/admin/me", { method: "GET" });
+      setAdminAuthenticated(true, response && response.teacherName);
+      return response;
+    } catch (e) {
+      const message = String(e && e.message ? e.message : e);
+      if (isAuthorizationFailure(0, message)) {
+        clearTokenAndReset(message);
+        return null;
+      }
+      throw e;
+    }
   }
 
   function postAssignTeachers(yearClassId, teacherIds) {
@@ -325,199 +1207,159 @@
     return (source || "").toLowerCase().includes(keyword.toLowerCase());
   }
 
+  function buildStudentCalendarUrl(studentId, yearValue) {
+    const today = new Date();
+    return `/app/student/calendar/${studentId}?year=${yearValue}&month=${today.getMonth() + 1}`;
+  }
+
   function applyFilterAndRender() {
-    const classKeyword = document.getElementById("filterClassName").value.trim();
-    const teacherKeyword = document.getElementById("filterTeacherName").value.trim();
-    const studentKeyword = document.getElementById("filterStudentName").value.trim();
-    const activeOnly = document.getElementById("filterActiveOnly").checked;
+    const filtered = cachedYearClasses.slice();
+    const activeYear = getActiveYearValue()
+      || (Number.isFinite(Number(dashboardYearValue)) ? Number(dashboardYearValue) : null)
+      || (filtered[0] ? filtered[0].yearValue : null);
+    const yearBadge = document.getElementById("dashboardYearBadge");
+    if (yearBadge) {
+      yearBadge.textContent = activeYear ? `활성 연도 : ${activeYear}년` : "활성 연도 -";
+    }
 
-    const filtered = cachedYearClasses.filter(item => {
-      if (activeOnly && !item.active) return false;
-      if (!includesText(item.className, classKeyword)) return false;
-      if (teacherKeyword && !(item.teachers || []).some(t => includesText(t.teacherName, teacherKeyword))) return false;
-      if (studentKeyword && !(item.students || []).some(s => includesText(s.studentName, studentKeyword))) return false;
-      return true;
-    });
+    if (!filtered.length) {
+      const rankingContainer = document.getElementById("dashboardOverallRanking");
+      if (rankingContainer) {
+        rankingContainer.innerHTML = '<div class="table-empty">순위 데이터가 없습니다.</div>';
+      }
+      dashboardClassBoard.innerHTML = '<div class="table-empty">조건에 맞는 반이 없습니다.</div>';
+      setStatus("");
+      return;
+    }
 
-    yearClassList.innerHTML = "";
-    filtered.forEach(item => {
-      const card = document.createElement("article");
-      card.className = "card";
-      card.innerHTML = `
-        <h3>${escapeHtml(item.className)} (#${item.yearClassId})</h3>
-        <p class="meta">연도 ${item.yearValue} / 정렬 ${item.sortOrder} / ${item.active ? "활성" : "비활성"}</p>
-        <div class="card-actions">
-          <button class="ghost btnSetTarget" data-year-class-id="${item.yearClassId}">이 반을 작업 대상으로 설정</button>
-        </div>
-        <div class="chip-row">
-          <label>반명 <input class="inline-input className" type="text" value="${escapeHtml(item.className)}" /></label>
-          <label>정렬 <input class="inline-input sortOrder" type="number" value="${item.sortOrder}" /></label>
-          <label><input class="activeFlag" type="checkbox" ${item.active ? "checked" : ""}/> 활성</label>
-          <button class="btnSaveClass" data-year-class-id="${item.yearClassId}">반 정보 저장</button>
-        </div>
-        <strong>교사 (${(item.teachers || []).length})</strong>
-        <ul class="mini-list">${(item.teachers || []).map(t => `<li>${escapeHtml(t.teacherName)} (${t.teacherId}) <button class="danger btnRemoveTeacher" data-year-class-id="${item.yearClassId}" data-teacher-id="${t.teacherId}">해제</button></li>`).join("") || "<li>없음</li>"}</ul>
-        <div class="chip-row">
-          <label>교사 ID들 <input class="inline-input teacherIdsInput" type="text" placeholder="1,2,3" /></label>
-          <button class="ghost btnBulkRemoveTeachers" data-year-class-id="${item.yearClassId}">교사 일괄 해제</button>
-        </div>
-        <strong>학생 (${(item.students || []).length})</strong>
-        <ul class="mini-list">${(item.students || []).map(s => `<li>${escapeHtml(s.studentName)} (${s.studentId}) <button class="danger btnRemoveStudent" data-year-class-id="${item.yearClassId}" data-student-id="${s.studentId}">해제</button></li>`).join("") || "<li>없음</li>"}</ul>
-        <div class="chip-row">
-          <label>학생 ID들 <input class="inline-input studentIdsInput" type="text" placeholder="11,12,13" /></label>
-          <button class="ghost btnBulkRemoveStudents" data-year-class-id="${item.yearClassId}">학생 일괄 해제</button>
-        </div>
-        <div class="chip-row">
-          <label>이동 대상 반ID <input class="inline-input moveTargetInput" type="number" placeholder="2" /></label>
-          <label>학생 ID들 <input class="inline-input moveStudentIdsInput" type="text" placeholder="11,12,13" /></label>
-          <button class="btnMoveFromCard">학생 이동</button>
-        </div>
+    const overallStudents = filtered
+      .flatMap(item => Array.isArray(item.students) ? item.students : [])
+      .reduce((acc, student) => {
+        if (!acc.some(item => item.studentId === student.studentId)) {
+          acc.push(student);
+        }
+        return acc;
+      }, [])
+      .sort((a, b) => (b.qtCount || 0) - (a.qtCount || 0) || (b.totalCount || 0) - (a.totalCount || 0))
+      .slice(0, 5);
+
+    const rankingContainer = document.getElementById("dashboardOverallRanking");
+    if (rankingContainer) {
+      rankingContainer.innerHTML = overallStudents.length ? `
+        <table class="manager-table">
+          <thead>
+            <tr>
+              <th>순위</th>
+              <th>이름</th>
+              <th>학년</th>
+              <th>QT</th>
+              <th>노트</th>
+              <th>총합</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${overallStudents.map((student, index) => `
+              <tr>
+                <td data-label="순위">${index + 1}</td>
+                <td data-label="이름">${escapeHtml(student.studentName)}</td>
+                <td data-label="학년">${escapeHtml(student.schoolGrade || "-")}학년</td>
+                <td data-label="QT"><strong>${student.qtCount || 0}</strong></td>
+                <td data-label="노트">${student.noteCount || 0}</td>
+                <td data-label="총합">${student.totalCount || 0}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      ` : '<div class="table-empty">순위 데이터가 없습니다.</div>';
+    }
+
+    dashboardClassBoard.innerHTML = filtered.map(item => {
+      const teachers = Array.isArray(item.teachers) ? item.teachers : [];
+      const students = Array.isArray(item.students) ? item.students : [];
+      const ranking = students
+        .slice()
+        .sort((a, b) => (b.totalCount || 0) - (a.totalCount || 0) || (b.qtCount || 0) - (a.qtCount || 0))
+        .slice(0, 5);
+
+      return `
+        <article class="dashboard-class-card">
+          <div class="dashboard-class-head">
+            <div>
+              <h3 class="dashboard-class-title">${escapeHtml(item.className)}</h3>
+              <p class="dashboard-class-meta">${escapeHtml(item.yearValue)}년 · 담당 : ${teachers.map(t => t.teacherName).join(", ") || "미배정"} · 학생 ${students.length}명</p>
+            </div>
+            <button class="ghost btnSetTarget" type="button" data-year-class-id="${item.yearClassId}">작업 반 선택</button>
+          </div>
+
+          <div class="student-chip-grid">
+            ${students.length ? students.map(student => `
+              <button class="student-link-card btnOpenStudentCalendar" type="button" data-student-id="${student.studentId}" data-year-value="${item.yearValue}">
+                <div class="student-link-main">
+                  <strong>${escapeHtml(student.studentName)}${student.schoolGrade ? ` (${escapeHtml(student.schoolGrade)}학년)` : ""}</strong>
+                  <span class="badge-soft">QT ${student.qtCount || 0} · 노트 ${student.noteCount || 0}</span>
+                </div>
+                <div class="student-link-sub">총 ${student.totalCount || 0}개 · 누르면 학생 달력 열기</div>
+              </button>
+            `).join("") : '<div class="table-empty">등록된 학생이 없습니다.</div>'}
+          </div>
+
+          <div class="ranking-block">
+            <h4 class="ranking-title">열매 개수 순위</h4>
+            <div class="ranking-list">
+              ${ranking.length ? ranking.map((student, index) => `
+                <div class="ranking-row">
+                  <span>${index + 1}. ${escapeHtml(student.studentName)}</span>
+                  <strong>총합 ${student.totalCount || 0}</strong>
+                </div>
+              `).join("") : '<div class="table-empty">순위 데이터가 없습니다.</div>'}
+            </div>
+          </div>
+        </article>
       `;
-      yearClassList.appendChild(card);
+    }).join("");
 
-      card.querySelector(".btnSetTarget").addEventListener("click", function () {
-        setAssignmentTarget(item.yearClassId);
-      });
-
-      card.querySelector(".btnSaveClass").addEventListener("click", async function () {
-        try {
-          const className = card.querySelector(".className").value.trim();
-          const sortOrder = Number(card.querySelector(".sortOrder").value);
-          const active = card.querySelector(".activeFlag").checked;
-          const body = await api("/api/admin/year-classes/" + item.yearClassId, {
-            method: "PATCH",
-            body: JSON.stringify({ className, sortOrder, active })
-          });
-          render(body);
-          await refreshYearClasses();
-        } catch (e) {
-          render(e.message);
-        }
-      });
-
-      card.querySelectorAll(".btnRemoveTeacher").forEach(btn => {
-        btn.addEventListener("click", async function () {
-          try {
-            const teacherId = Number(btn.dataset.teacherId);
-            if (!confirmAction(`교사 ${teacherId}를 반 ${item.yearClassId}에서 해제할까요?`)) return;
-            await runUndoAware(
-              {
-                execute: () => deleteAssignTeachers(item.yearClassId, [teacherId])
-              },
-              {
-                label: `교사 ${teacherId} 재배정`,
-                execute: () => runAndRefresh(() => postAssignTeachers(item.yearClassId, [teacherId]))
-              }
-            );
-          } catch (e) {
-            render(e.message);
-          }
-        });
-      });
-
-      card.querySelector(".btnBulkRemoveTeachers").addEventListener("click", async function () {
-        try {
-          const teacherIds = parseIds(card.querySelector(".teacherIdsInput").value);
-          ensureNonEmptyIds(teacherIds, "teacherIds");
-          if (!confirmAction(`교사 ${teacherIds.join(", ")}를 반 ${item.yearClassId}에서 해제할까요?`)) return;
-          await runUndoAware(
-            {
-              execute: () => deleteAssignTeachers(item.yearClassId, teacherIds)
-            },
-            {
-              label: `교사 ${teacherIds.join(", ")} 재배정`,
-              execute: () => runAndRefresh(() => postAssignTeachers(item.yearClassId, teacherIds))
-            }
-          );
-        } catch (e) {
-          render(e.message);
-        }
-      });
-
-      card.querySelectorAll(".btnRemoveStudent").forEach(btn => {
-        btn.addEventListener("click", async function () {
-          try {
-            const studentId = Number(btn.dataset.studentId);
-            if (!confirmAction(`학생 ${studentId}를 반 ${item.yearClassId}에서 해제할까요?`)) return;
-            await runUndoAware(
-              {
-                execute: () => deleteAssignStudents(item.yearClassId, [studentId])
-              },
-              {
-                label: `학생 ${studentId} 재배정`,
-                execute: () => runAndRefresh(() => postAssignStudents(item.yearClassId, [studentId]))
-              }
-            );
-          } catch (e) {
-            render(e.message);
-          }
-        });
-      });
-
-      card.querySelector(".btnBulkRemoveStudents").addEventListener("click", async function () {
-        try {
-          const studentIds = parseIds(card.querySelector(".studentIdsInput").value);
-          ensureNonEmptyIds(studentIds, "studentIds");
-          if (!confirmAction(`학생 ${studentIds.join(", ")}를 반 ${item.yearClassId}에서 해제할까요?`)) return;
-          await runUndoAware(
-            {
-              execute: () => deleteAssignStudents(item.yearClassId, studentIds)
-            },
-            {
-              label: `학생 ${studentIds.join(", ")} 재배정`,
-              execute: () => runAndRefresh(() => postAssignStudents(item.yearClassId, studentIds))
-            }
-          );
-        } catch (e) {
-          render(e.message);
-        }
-      });
-
-      card.querySelector(".btnMoveFromCard").addEventListener("click", async function () {
-        try {
-          const targetYearClassId = Number(card.querySelector(".moveTargetInput").value);
-          const studentIds = parseIds(card.querySelector(".moveStudentIdsInput").value);
-          ensureNonEmptyIds(studentIds, "studentIds");
-          if (!confirmAction(`학생 ${studentIds.join(", ")}를 반 ${targetYearClassId}로 이동할까요?`)) return;
-          await runUndoAware(
-            {
-              execute: () => moveStudents(targetYearClassId, studentIds)
-            },
-            {
-              label: `학생 ${studentIds.join(", ")} 원복`,
-              execute: () => runAndRefresh(() => moveStudents(item.yearClassId, studentIds))
-            }
-          );
-        } catch (e) {
-          render(e.message);
-        }
+    dashboardClassBoard.querySelectorAll(".btnSetTarget").forEach(button => {
+      button.addEventListener("click", function () {
+        setAssignmentTarget(Number(button.dataset.yearClassId));
+        setActiveTab("assignment");
       });
     });
 
-    setStatus(`필터 적용: ${filtered.length}개 반 표시`);
+    dashboardClassBoard.querySelectorAll(".btnOpenStudentCalendar").forEach(button => {
+      button.addEventListener("click", function () {
+        const path = buildStudentCalendarUrl(Number(button.dataset.studentId), Number(button.dataset.yearValue));
+        window.open(path, "_blank", "noopener");
+      });
+    });
+
+    setStatus("");
   }
 
   async function refreshYearClasses() {
-    const year = Number(queryYearInput.value);
+    const requestedYear = Number(queryYearInput.value);
+    const year = Number.isFinite(requestedYear) ? requestedYear : getActiveYearValue();
     if (!Number.isFinite(year)) throw new Error("조회 연도를 입력하세요.");
+    dashboardYearValue = year;
+    queryYearInput.value = String(year);
     const body = await api("/api/admin/year-classes?year=" + year, { method: "GET" });
     cachedYearClasses = Array.isArray(body) ? body : [];
     applyFilterAndRender();
+    syncYearOptions();
+    syncAssignmentYearClassOptions();
+    document.getElementById("classManagementYearFilter").value = String(year);
+    renderClassManagement();
+    renderAssignmentManagement();
     return body;
   }
 
   async function loadBootstrapAndDefaultYear() {
-    const requestedYear = Number(queryYearInput.value);
     const bootstrapParams = new URLSearchParams();
-    if (Number.isFinite(requestedYear)) {
-      bootstrapParams.set("year", String(requestedYear));
-    }
-    const keyword = document.getElementById("poolKeyword").value.trim();
-    const activeOnly = document.getElementById("poolActiveOnly").checked;
-    const limit = pageSize();
-    if (keyword) bootstrapParams.set("poolKeyword", keyword);
-    bootstrapParams.set("poolActiveOnly", String(activeOnly));
-    bootstrapParams.set("poolLimit", String(limit));
+    const teacherKeyword = document.getElementById("teacherKeyword").value.trim();
+    const teacherActiveOnly = document.getElementById("teacherActiveOnly").checked;
+    const teacherLimit = teacherPageSize();
+    if (teacherKeyword) bootstrapParams.set("poolKeyword", teacherKeyword);
+    bootstrapParams.set("poolActiveOnly", String(teacherActiveOnly));
+    bootstrapParams.set("poolLimit", String(teacherLimit));
     const auditLimit = Number(document.getElementById("auditLimit").value || 100);
     const auditOffset = Number(document.getElementById("auditOffset").value || 0);
     const auditActorTeacherIdRaw = document.getElementById("auditActorTeacherId").value.trim();
@@ -526,10 +1368,10 @@
     const auditKeyword = document.getElementById("auditKeyword").value.trim();
     const auditFromAt = document.getElementById("auditFromAt").value.trim();
     const auditToAt = document.getElementById("auditToAt").value.trim();
-    const includeYearClasses = document.getElementById("bootstrapIncludeYearClasses").checked;
-    const includeActionTypes = document.getElementById("bootstrapIncludeActionTypes").checked;
-    const includePools = document.getElementById("bootstrapIncludePools").checked;
-    const includeAuditLogs = document.getElementById("bootstrapIncludeAuditLogs").checked;
+    const includeYearClasses = true;
+    const includeActionTypes = true;
+    const includePools = false;
+    const includeAuditLogs = false;
     localStorage.setItem("qt_admin_bootstrap_include_year_classes", String(includeYearClasses));
     localStorage.setItem("qt_admin_bootstrap_include_action_types", String(includeActionTypes));
     localStorage.setItem("qt_admin_bootstrap_include_pools", String(includePools));
@@ -566,19 +1408,32 @@
       option.value = type;
       datalist.appendChild(option);
     });
-    if (Number.isFinite(selectedYear)) {
+    cachedYears = years;
+    syncYearOptions();
+    const activeYearValue = getActiveYearValue();
+    if (Number.isFinite(activeYearValue)) {
+      queryYearInput.value = String(activeYearValue);
+      dashboardYearValue = activeYearValue;
+    } else if (Number.isFinite(selectedYear)) {
       queryYearInput.value = String(selectedYear);
+      dashboardYearValue = selectedYear;
     } else if (years.length > 0 && Number.isFinite(Number(years[0].yearValue))) {
       queryYearInput.value = String(years[0].yearValue);
+      dashboardYearValue = Number(years[0].yearValue);
     }
     if (queryYearInput.value) {
       if (yearClasses.length > 0) {
         cachedYearClasses = yearClasses;
         applyFilterAndRender();
+        document.getElementById("classManagementYearFilter").value = String(getActiveYearValue() || Number(queryYearInput.value));
+        syncAssignmentYearClassOptions();
+        renderClassManagement();
+        renderAssignmentManagement();
       } else {
         await refreshYearClasses();
       }
     }
+    renderYearManagement();
     if (bootstrapTeachers && Array.isArray(bootstrapTeachers.items)) {
       teacherPoolItems = bootstrapTeachers.items;
       teacherTotalCount = Number(bootstrapTeachers.totalCount || bootstrapTeachers.items.length || 0);
@@ -592,12 +1447,18 @@
       renderStudentPoolPage();
     }
     if (bootstrapAuditLogs) {
-      auditResult.textContent = JSON.stringify(bootstrapAuditLogs, null, 2);
+      renderAuditLogsResponse(bootstrapAuditLogs);
     }
     if (bootstrapPool) {
-      if (typeof bootstrapPool.keyword === "string") document.getElementById("poolKeyword").value = bootstrapPool.keyword;
-      if (typeof bootstrapPool.activeOnly === "boolean") document.getElementById("poolActiveOnly").checked = bootstrapPool.activeOnly;
-      if (Number.isFinite(Number(bootstrapPool.limit))) document.getElementById("poolPageSize").value = String(bootstrapPool.limit);
+      if (typeof bootstrapPool.keyword === "string") {
+        document.getElementById("teacherKeyword").value = bootstrapPool.keyword;
+      }
+      if (typeof bootstrapPool.activeOnly === "boolean") {
+        document.getElementById("teacherActiveOnly").checked = bootstrapPool.activeOnly;
+      }
+      if (Number.isFinite(Number(bootstrapPool.limit))) {
+        document.getElementById("teacherPageSize").value = String(bootstrapPool.limit);
+      }
     }
     if (bootstrapAudit) {
       if (Number.isFinite(Number(bootstrapAudit.actorTeacherId))) {
@@ -618,12 +1479,12 @@
     return body;
   }
 
-  function buildPoolQuery(limit, offset) {
-    const keyword = document.getElementById("poolKeyword").value.trim();
-    const activeOnly = document.getElementById("poolActiveOnly").checked;
+  function buildTeacherPoolQuery(limit, offset) {
+    const keyword = document.getElementById("teacherKeyword").value.trim();
+    const activeOnly = document.getElementById("teacherActiveOnly").checked;
     localStorage.setItem("qt_admin_pool_keyword", keyword);
     localStorage.setItem("qt_admin_pool_active_only", String(activeOnly));
-    localStorage.setItem("qt_admin_pool_page_size", String(pageSize()));
+    localStorage.setItem("qt_admin_pool_page_size", String(teacherPageSize()));
     const params = new URLSearchParams();
     params.set("activeOnly", String(activeOnly));
     params.set("limit", String(limit));
@@ -632,15 +1493,35 @@
     return params;
   }
 
-  function pageSize() {
-    const value = Number(document.getElementById("poolPageSize").value || 20);
+  function buildStudentPoolQuery(limit, offset) {
+    const keyword = document.getElementById("studentKeyword").value.trim();
+    const activeOnly = document.getElementById("studentActiveOnly").checked;
+    localStorage.setItem("qt_admin_pool_keyword", keyword);
+    localStorage.setItem("qt_admin_pool_active_only", String(activeOnly));
+    localStorage.setItem("qt_admin_pool_page_size", String(studentPageSize()));
+    const params = new URLSearchParams();
+    params.set("activeOnly", String(activeOnly));
+    params.set("limit", String(limit));
+    params.set("offset", String(offset));
+    if (keyword) params.set("keyword", keyword);
+    return params;
+  }
+
+  function teacherPageSize() {
+    const value = Number(document.getElementById("teacherPageSize").value || 10);
+    return Math.min(Math.max(value, 5), 200);
+  }
+
+  function studentPageSize() {
+    const value = Number(document.getElementById("studentPageSize").value || 10);
     return Math.min(Math.max(value, 5), 200);
   }
 
   function renderTeacherPoolPage() {
-    const totalPages = Math.max(1, Math.ceil(teacherTotalCount / pageSize()));
+    const totalPages = Math.max(1, Math.ceil(teacherTotalCount / teacherPageSize()));
     teacherPage = Math.min(Math.max(teacherPage, 1), totalPages);
     teacherPageInfo.textContent = `${teacherPage} / ${totalPages} (${teacherTotalCount})`;
+    renderTeacherManagement();
     teacherPool.innerHTML = "";
     teacherPoolItems.forEach(item => {
       const div = document.createElement("div");
@@ -683,9 +1564,10 @@
   }
 
   function renderStudentPoolPage() {
-    const totalPages = Math.max(1, Math.ceil(studentTotalCount / pageSize()));
+    const totalPages = Math.max(1, Math.ceil(studentTotalCount / studentPageSize()));
     studentPage = Math.min(Math.max(studentPage, 1), totalPages);
     studentPageInfo.textContent = `${studentPage} / ${totalPages} (${studentTotalCount})`;
+    renderStudentManagement();
     studentPool.innerHTML = "";
     studentPoolItems.forEach(item => {
       const div = document.createElement("div");
@@ -766,9 +1648,9 @@
 
   async function loadTeacherPool(page) {
     teacherPage = Math.max(1, page || 1);
-    const size = pageSize();
+    const size = teacherPageSize();
     const offset = (teacherPage - 1) * size;
-    const response = await api("/api/admin/teachers?" + buildPoolQuery(size, offset).toString(), { method: "GET" });
+    const response = await api("/api/admin/teachers?" + buildTeacherPoolQuery(size, offset).toString(), { method: "GET" });
     teacherPoolItems = response.items || [];
     teacherTotalCount = response.totalCount || 0;
     renderTeacherPoolPage();
@@ -777,17 +1659,18 @@
 
   async function loadStudentPool(page) {
     studentPage = Math.max(1, page || 1);
-    const size = pageSize();
+    const size = studentPageSize();
     const offset = (studentPage - 1) * size;
-    const response = await api("/api/admin/students?" + buildPoolQuery(size, offset).toString(), { method: "GET" });
+    const response = await api("/api/admin/students?" + buildStudentPoolQuery(size, offset).toString(), { method: "GET" });
     studentPoolItems = response.items || [];
     studentTotalCount = response.totalCount || 0;
     renderStudentPoolPage();
     render(response);
   }
 
-  document.getElementById("btnLogin").addEventListener("click", async function () {
+  async function attemptAdminLogin() {
     try {
+      setAdminLoginMessage("");
       setStatus("로그인 중...");
       const loginId = document.getElementById("loginId").value.trim();
       const password = document.getElementById("password").value.trim();
@@ -796,42 +1679,231 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ loginId, password })
       });
-      const body = await response.json();
-      if (!response.ok) throw new Error(JSON.stringify(body));
-      tokenInput.value = body.accessToken || "";
-      localStorage.setItem("qt_admin_token", tokenInput.value);
+      const text = await response.text();
+      let body;
+      try {
+        body = text ? JSON.parse(text) : null;
+      } catch (_) {
+        body = text;
+      }
+      if (!response.ok) throw new Error(extractErrorMessage(body, "로그인에 실패했습니다."));
+      if (!body || body.role !== "ADMIN") {
+        throw new Error("관리자 권한이 없습니다.");
+      }
+      persistAdminToken(body.accessToken || "");
+      setActiveTab("dashboard");
       setStatus("로그인 성공");
+      setAdminAuthenticated(true, body.teacherName);
+      setAdminLoginMessage("");
       await loadBootstrapAndDefaultYear();
+      refreshVisibleTabData();
       render(body);
     } catch (e) {
+      setAdminAuthenticated(false);
       setStatus("로그인 실패");
-      render("로그인 실패: " + e.message);
+      setAdminLoginMessage(extractErrorMessage(e && e.message ? e.message : e, "로그인에 실패했습니다."));
+      render("로그인 실패: " + extractErrorMessage(e && e.message ? e.message : e, "로그인에 실패했습니다."));
+    }
+  }
+
+  document.getElementById("btnLogin").addEventListener("click", async function () {
+    await attemptAdminLogin();
+  });
+
+  ["loginId", "password"].forEach(function (id) {
+    const input = document.getElementById(id);
+    if (!input) {
+      return;
+    }
+    input.addEventListener("keydown", function (event) {
+      if (event.key !== "Enter") {
+        return;
+      }
+      event.preventDefault();
+      attemptAdminLogin();
+    });
+  });
+
+  if (btnAdminLogout) {
+    btnAdminLogout.addEventListener("click", function () {
+      clearTokenAndReset();
+    });
+  }
+
+  document.getElementById("btnOpenCreateYear").addEventListener("click", openCreateYearEditor);
+  document.getElementById("btnCloseYearEditor").addEventListener("click", function () {
+    document.getElementById("yearEditorPanel").classList.add("hidden");
+  });
+  document.getElementById("btnOpenCreateClass").addEventListener("click", openCreateClassEditor);
+  document.getElementById("btnCloseClassEditor").addEventListener("click", function () {
+    document.getElementById("classEditorPanel").classList.add("hidden");
+  });
+  document.getElementById("btnOpenCreateTeacher").addEventListener("click", openCreateTeacherEditor);
+  document.getElementById("btnCloseTeacherEditor").addEventListener("click", function () {
+    document.getElementById("teacherEditorPanel").classList.add("hidden");
+  });
+  document.getElementById("btnOpenCreateStudent").addEventListener("click", openCreateStudentEditor);
+  document.getElementById("btnCloseStudentEditor").addEventListener("click", function () {
+    document.getElementById("studentEditorPanel").classList.add("hidden");
+  });
+  document.getElementById("classManagementYearFilter").addEventListener("change", async function () {
+    try {
+      await reloadClassManagementForSelectedYear();
+    } catch (e) {
+      render(e.message);
+    }
+  });
+  document.getElementById("assignmentYearClassSelect").addEventListener("change", function () {
+    const yearClassId = currentAssignmentYearClassId();
+    if (yearClassId) {
+      setAssignmentTarget(yearClassId);
+    } else {
+      renderAssignmentManagement();
+    }
+  });
+  document.getElementById("assignmentTeacherKeyword").addEventListener("input", renderAssignmentManagement);
+  document.getElementById("assignmentStudentKeyword").addEventListener("input", renderAssignmentManagement);
+  document.getElementById("assignmentTeacherAssignedOnly").addEventListener("change", renderAssignmentManagement);
+  document.getElementById("assignmentStudentAssignedOnly").addEventListener("change", renderAssignmentManagement);
+
+  document.getElementById("btnSubmitYearEditor").addEventListener("click", async function () {
+    try {
+      const yearValue = Number(document.getElementById("yearEditorValue").value);
+      const active = document.getElementById("yearEditorActive").checked;
+      const existingYear = yearEditorState.mode === "edit"
+        ? cachedYears.find(item => item.id === yearEditorState.yearId)
+        : null;
+      const openToStudents = existingYear ? !!existingYear.openToStudents : false;
+      const openToTeachers = existingYear ? !!existingYear.openToTeachers : false;
+
+      let body;
+      if (yearEditorState.mode === "edit" && yearEditorState.yearId) {
+        body = await api("/api/admin/years/" + yearEditorState.yearId, {
+          method: "PATCH",
+          body: JSON.stringify({ openToStudents, openToTeachers, active })
+        });
+      } else {
+        body = await api("/api/admin/years", {
+          method: "POST",
+          body: JSON.stringify({ yearValue, openToStudents, openToTeachers, active })
+        });
+      }
+      document.getElementById("yearEditorPanel").classList.add("hidden");
+      render(body);
+      cachedYears = await api("/api/admin/years", { method: "GET" });
+      renderYearManagement();
+      syncYearOptions();
+      setYearClassTab("years");
+    } catch (e) {
+      render(e.message);
     }
   });
 
-  document.getElementById("btnSaveToken").addEventListener("click", function () {
-    localStorage.setItem("qt_admin_token", tokenInput.value.trim());
-    setStatus("토큰 저장 완료");
-    loadBootstrapAndDefaultYear()
-      .then(function () {
-        render("토큰 저장 후 초기화 완료");
-      })
-      .catch(function (e) {
-        handleBootstrapFailure("토큰 저장 완료, 초기화 실패", e);
-      });
-  });
-
-  document.getElementById("btnClearToken").addEventListener("click", function () {
-    localStorage.removeItem("qt_admin_token");
-    tokenInput.value = "";
-    resetUiState();
-    setStatus("토큰 삭제 완료");
-    render("토큰 삭제 완료");
-  });
-
-  document.getElementById("btnGetYears").addEventListener("click", async function () {
+  document.getElementById("btnSubmitClassEditor").addEventListener("click", async function () {
     try {
-      render(await api("/api/admin/years", { method: "GET" }));
+      const yearValue = Number(document.getElementById("classEditorYearValue").value);
+      const className = document.getElementById("classEditorName").value.trim();
+      const sortOrder = Number(document.getElementById("classEditorSortOrder").value);
+      const active = document.getElementById("classEditorActive").checked;
+
+      if (!Number.isFinite(yearValue)) {
+        throw new Error("연도를 선택해야 합니다.");
+      }
+      if (!className) {
+        throw new Error("반 이름은 비어 있을 수 없습니다.");
+      }
+      if (!Number.isFinite(sortOrder)) {
+        throw new Error("정렬 순서를 숫자로 입력해야 합니다.");
+      }
+
+      let body;
+      if (classEditorState.mode === "edit" && classEditorState.yearClassId) {
+        body = await api("/api/admin/year-classes/" + classEditorState.yearClassId, {
+          method: "PATCH",
+          body: JSON.stringify({ className, sortOrder, active })
+        });
+      } else {
+        body = await api("/api/admin/year-classes", {
+          method: "POST",
+          body: JSON.stringify({ yearValue, className, sortOrder, active })
+        });
+      }
+      document.getElementById("classEditorPanel").classList.add("hidden");
+      render(body);
+      queryYearInput.value = String(yearValue);
+      document.getElementById("classManagementYearFilter").value = String(yearValue);
+      await refreshYearClasses();
+      setYearClassTab("classes");
+    } catch (e) {
+      render(e.message);
+    }
+  });
+
+  document.getElementById("btnSubmitTeacherEditor").addEventListener("click", async function () {
+    try {
+      const createPayload = {
+        loginId: document.getElementById("teacherEditorLoginId").value.trim(),
+        password: document.getElementById("teacherEditorPassword").value,
+        teacherName: document.getElementById("teacherEditorName").value.trim(),
+        contactNumber: document.getElementById("teacherEditorContactNumber").value.trim(),
+        birthDate: normalizeBirthDateInput(document.getElementById("teacherEditorBirthDate").value),
+        role: document.getElementById("teacherEditorRole").value,
+        active: document.getElementById("teacherEditorActive").checked
+      };
+
+      let body;
+      if (teacherEditorState.mode === "edit" && teacherEditorState.teacherId) {
+        const updatePayload = {
+          teacherName: createPayload.teacherName,
+          contactNumber: createPayload.contactNumber,
+          birthDate: createPayload.birthDate,
+          role: createPayload.role,
+          active: createPayload.active,
+          password: createPayload.password
+        };
+        body = await api("/api/admin/teachers/" + teacherEditorState.teacherId, {
+          method: "PATCH",
+          body: JSON.stringify(updatePayload)
+        });
+      } else {
+        body = await api("/api/admin/teachers", {
+          method: "POST",
+          body: JSON.stringify(createPayload)
+        });
+      }
+      document.getElementById("teacherEditorPanel").classList.add("hidden");
+      render(body);
+      await loadTeacherPool(teacherPage);
+    } catch (e) {
+      render(e.message);
+    }
+  });
+
+  document.getElementById("btnSubmitStudentEditor").addEventListener("click", async function () {
+    try {
+      const payload = {
+        studentName: document.getElementById("studentEditorName").value.trim(),
+        schoolGrade: Number(document.getElementById("studentEditorSchoolGrade").value || 0) || null,
+        contactNumber: document.getElementById("studentEditorContactNumber").value.trim(),
+        birthDate: normalizeBirthDateInput(document.getElementById("studentEditorBirthDate").value),
+        active: document.getElementById("studentEditorActive").checked
+      };
+
+      let body;
+      if (studentEditorState.mode === "edit" && studentEditorState.studentId) {
+        body = await api("/api/admin/students/" + studentEditorState.studentId, {
+          method: "PATCH",
+          body: JSON.stringify(payload)
+        });
+      } else {
+        body = await api("/api/admin/students", {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+      }
+      document.getElementById("studentEditorPanel").classList.add("hidden");
+      render(body);
+      await loadStudentPool(studentPage);
     } catch (e) {
       render(e.message);
     }
@@ -848,15 +1920,6 @@
   document.getElementById("btnGetYearClasses").addEventListener("click", async function () {
     try {
       render(await refreshYearClasses());
-    } catch (e) {
-      render(e.message);
-    }
-  });
-
-  document.getElementById("btnGetYearClass").addEventListener("click", async function () {
-    try {
-      const yearClassId = Number(document.getElementById("queryYearClassId").value);
-      render(await api("/api/admin/year-classes/" + yearClassId, { method: "GET" }));
     } catch (e) {
       render(e.message);
     }
@@ -1051,10 +2114,10 @@
       const params = buildAuditParams(100);
 
       const body = await api("/api/admin/audit-logs?" + params.toString(), { method: "GET" });
-      auditResult.textContent = JSON.stringify(body, null, 2);
+      renderAuditLogsResponse(body);
       render(body);
     } catch (e) {
-      auditResult.textContent = e.message;
+      auditResult.innerHTML = `<div class="table-empty">${escapeHtml(e.message || "운영 로그 조회에 실패했습니다.")}</div>`;
       render(e.message);
     }
   });
@@ -1142,7 +2205,7 @@
 
   document.getElementById("btnTeacherNext").addEventListener("click", async function () {
     try {
-      const totalPages = Math.max(1, Math.ceil(teacherTotalCount / pageSize()));
+      const totalPages = Math.max(1, Math.ceil(teacherTotalCount / teacherPageSize()));
       if (teacherPage < totalPages) {
         await loadTeacherPool(teacherPage + 1);
       }
@@ -1163,7 +2226,7 @@
 
   document.getElementById("btnStudentNext").addEventListener("click", async function () {
     try {
-      const totalPages = Math.max(1, Math.ceil(studentTotalCount / pageSize()));
+      const totalPages = Math.max(1, Math.ceil(studentTotalCount / studentPageSize()));
       if (studentPage < totalPages) {
         await loadStudentPool(studentPage + 1);
       }
@@ -1172,100 +2235,146 @@
     }
   });
 
-  document.getElementById("btnAssignSelectedTeachers").addEventListener("click", async function () {
+  document.getElementById("btnAssignmentAssignTeachers").addEventListener("click", async function () {
     try {
       const yearClassId = getTargetYearClassId();
-      const teacherIds = Array.from(selectedTeacherIds.values());
+      const teacherIds = Array.from(selectedAssignmentTeacherIds.values());
       ensureNonEmptyIds(teacherIds, "선택된 teacherIds");
-      if (!confirmAction(`선택 교사 ${teacherIds.join(", ")}를 반 ${yearClassId}에 배정할까요?`)) return;
+      if (!confirmAction(`선택한 교사 ${teacherIds.length}명을 배정할까요?`)) return;
       await runUndoAware(
         {
           execute: () => postAssignTeachers(yearClassId, teacherIds)
         },
         {
-          label: `선택 교사 배정 취소`,
+          label: "선택 교사 배정 취소",
           execute: () => runAndRefresh(() => deleteAssignTeachers(yearClassId, teacherIds))
         }
       );
-      selectedTeacherIds.clear();
+      selectedAssignmentTeacherIds.clear();
+      renderAssignmentManagement();
     } catch (e) {
       render(e.message);
     }
   });
 
-  document.getElementById("btnAssignSelectedStudents").addEventListener("click", async function () {
+  document.getElementById("btnAssignmentUnassignTeachers").addEventListener("click", async function () {
     try {
       const yearClassId = getTargetYearClassId();
-      const studentIds = Array.from(selectedStudentIds.values());
+      const teacherIds = Array.from(selectedAssignmentTeacherIds.values());
+      ensureNonEmptyIds(teacherIds, "선택된 teacherIds");
+      if (!confirmAction(`선택한 교사 ${teacherIds.length}명을 해제할까요?`)) return;
+      await runUndoAware(
+        {
+          execute: () => deleteAssignTeachers(yearClassId, teacherIds)
+        },
+        {
+          label: "선택 교사 재배정",
+          execute: () => runAndRefresh(() => postAssignTeachers(yearClassId, teacherIds))
+        }
+      );
+      selectedAssignmentTeacherIds.clear();
+      renderAssignmentManagement();
+    } catch (e) {
+      render(e.message);
+    }
+  });
+
+  document.getElementById("btnAssignmentAssignStudents").addEventListener("click", async function () {
+    try {
+      const yearClassId = getTargetYearClassId();
+      const studentIds = Array.from(selectedAssignmentStudentIds.values());
       ensureNonEmptyIds(studentIds, "선택된 studentIds");
-      if (!confirmAction(`선택 학생 ${studentIds.join(", ")}를 반 ${yearClassId}에 배정할까요?`)) return;
+      if (!confirmAction(`선택한 학생 ${studentIds.length}명을 배정할까요?`)) return;
       await runUndoAware(
         {
           execute: () => postAssignStudents(yearClassId, studentIds)
         },
         {
-          label: `선택 학생 배정 취소`,
+          label: "선택 학생 배정 취소",
           execute: () => runAndRefresh(() => deleteAssignStudents(yearClassId, studentIds))
         }
       );
-      selectedStudentIds.clear();
+      selectedAssignmentStudentIds.clear();
+      renderAssignmentManagement();
     } catch (e) {
       render(e.message);
     }
   });
 
-  document.getElementById("btnUndoLastAction").addEventListener("click", async function () {
+  document.getElementById("btnAssignmentUnassignStudents").addEventListener("click", async function () {
     try {
-      if (!lastUndoAction) {
-        render("되돌릴 작업이 없습니다.");
-        return;
-      }
-      if (!confirmAction(`마지막 작업을 되돌릴까요? (${lastUndoAction.label})`)) return;
-      await lastUndoAction.execute();
-      setUndoAction(null);
-      render("마지막 작업 되돌리기 완료");
+      const yearClassId = getTargetYearClassId();
+      const studentIds = Array.from(selectedAssignmentStudentIds.values());
+      ensureNonEmptyIds(studentIds, "선택된 studentIds");
+      if (!confirmAction(`선택한 학생 ${studentIds.length}명을 해제할까요?`)) return;
+      await runUndoAware(
+        {
+          execute: () => deleteAssignStudents(yearClassId, studentIds)
+        },
+        {
+          label: "선택 학생 재배정",
+          execute: () => runAndRefresh(() => postAssignStudents(yearClassId, studentIds))
+        }
+      );
+      selectedAssignmentStudentIds.clear();
+      renderAssignmentManagement();
     } catch (e) {
       render(e.message);
     }
   });
 
-  bindBootstrapToggle("bootstrapIncludeYearClasses", "qt_admin_bootstrap_include_year_classes");
-  bindBootstrapToggle("bootstrapIncludeActionTypes", "qt_admin_bootstrap_include_action_types");
-  bindBootstrapToggle("bootstrapIncludePools", "qt_admin_bootstrap_include_pools");
-  bindBootstrapToggle("bootstrapIncludeAuditLogs", "qt_admin_bootstrap_include_audit_logs");
+  document.getElementById("btnAssignmentMoveStudents").addEventListener("click", async function () {
+    try {
+      const targetYearClassId = Number(document.getElementById("assignmentMoveTargetYearClassSelect").value);
+      const currentYearClassId = getTargetYearClassId();
+      const studentIds = Array.from(selectedAssignmentStudentIds.values());
+      ensureNonEmptyIds(studentIds, "선택된 studentIds");
+      if (!Number.isFinite(targetYearClassId)) {
+        throw new Error("이동할 반을 선택하세요.");
+      }
+      if (targetYearClassId === currentYearClassId) {
+        throw new Error("현재 반과 다른 반을 선택하세요.");
+      }
+      if (!confirmAction(`선택한 학생 ${studentIds.length}명을 다른 반으로 이동할까요?`)) return;
+      await runUndoAware(
+        {
+          execute: () => moveStudents(targetYearClassId, studentIds)
+        },
+        {
+          label: "선택 학생 이동 원복",
+          execute: () => runAndRefresh(() => moveStudents(currentYearClassId, studentIds))
+        }
+      );
+      selectedAssignmentStudentIds.clear();
+      renderAssignmentManagement();
+    } catch (e) {
+      render(e.message);
+    }
+  });
+
   updateBootstrapModeHint();
 
-  document.getElementById("btnBootstrapPresetFull").addEventListener("click", function () {
-    applyBootstrapIncludePreset({
-      includeYearClasses: true,
-      includeActionTypes: true,
-      includePools: true,
-      includeAuditLogs: true
-    });
-    if (tokenInput.value.trim()) {
-      loadBootstrapAndDefaultYear().catch(function (e) {
-        handleBootstrapFailure("프리셋 적용 실패", e);
-      });
-    }
-  });
-
-  document.getElementById("btnBootstrapPresetLite").addEventListener("click", function () {
-    applyBootstrapIncludePreset({
-      includeYearClasses: true,
-      includeActionTypes: true,
-      includePools: false,
-      includeAuditLogs: false
-    });
-    if (tokenInput.value.trim()) {
-      loadBootstrapAndDefaultYear().catch(function (e) {
-        handleBootstrapFailure("프리셋 적용 실패", e);
-      });
-    }
-  });
-
-  if (savedToken) {
-    loadBootstrapAndDefaultYear().catch(function (e) {
-      handleBootstrapFailure("자동 초기화 실패", e);
-    });
+  if (!adminToken) {
+    setAdminAuthenticated(false);
+    setAdminLoginMessage("관리자 페이지는 로그인 후 사용할 수 있습니다.");
+    setStatus("로그인 필요");
+    render("관리자 페이지는 로그인 후 사용할 수 있습니다.");
+    return;
   }
+
+  if (adminToken) {
+    validateAdminSession()
+      .then(function (me) {
+        if (!me) {
+          return;
+        }
+        return loadBootstrapAndDefaultYear().then(function () {
+          refreshVisibleTabData();
+        });
+      })
+      .catch(function (e) {
+        handleBootstrapFailure("자동 초기화 실패", e);
+      });
+  }
+
 })();

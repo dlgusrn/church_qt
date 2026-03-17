@@ -4,8 +4,20 @@ plugins {
     id 'io.spring.dependency-management' version '1.1.7'
 }
 
+import java.nio.charset.StandardCharsets
+
+def loadVersion = {
+    def versionFile = file('VERSION')
+    if (!versionFile.exists()) {
+        return '0.0.1-SNAPSHOT'
+    }
+
+    def loaded = versionFile.getText(StandardCharsets.UTF_8.name()).trim()
+    return loaded ? loaded : '0.0.1-SNAPSHOT'
+}
+
 group = 'com.church'
-version = '0.0.1-SNAPSHOT'
+version = loadVersion()
 description = 'church-qt'
 
 java {
@@ -48,4 +60,42 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+}
+
+def loadDotenv = {
+    def dotenvFile = file('.env')
+    if (!dotenvFile.exists()) {
+        return [:]
+    }
+
+    def values = [:]
+    dotenvFile.readLines(StandardCharsets.UTF_8.name()).each { rawLine ->
+        def line = rawLine.trim()
+        if (!line || line.startsWith('#')) {
+            return
+        }
+
+        if (line.startsWith('export ')) {
+            line = line.substring('export '.length()).trim()
+        }
+
+        def idx = line.indexOf('=')
+        if (idx <= 0) {
+            return
+        }
+
+        def key = line.substring(0, idx).trim()
+        def value = line.substring(idx + 1).trim()
+        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+            value = value.substring(1, value.length() - 1)
+        }
+        if (key) {
+            values[key] = value
+        }
+    }
+    values
+}
+
+tasks.named('bootRun') {
+    environment(loadDotenv())
 }

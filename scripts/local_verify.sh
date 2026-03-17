@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-BASE_URL="${1:-http://localhost:8080}"
+BASE_URL="${1:-http://localhost:8081}"
 ADMIN_ORIGIN="${2:-http://localhost:5173}"
 EXPECT_ADMIN_STATUS="${EXPECT_ADMIN_STATUS:-404}"
 START_APP="${START_APP:-true}"

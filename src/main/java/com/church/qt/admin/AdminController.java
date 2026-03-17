@@ -233,6 +233,25 @@ public class AdminController {
         return adminService.getTeachers(teacherId, activeOnly, keyword, limit, offset);
     }
 
+    @PostMapping("/teachers")
+    public AdminTeacherResponse createTeacher(
+            @RequestHeader("Authorization") String authorizationHeader,
+            @RequestBody CreateTeacherRequest request
+    ) {
+        Long teacherId = teacherAppService.extractTeacherId(authorizationHeader);
+        return adminService.createTeacher(teacherId, request);
+    }
+
+    @PatchMapping("/teachers/{targetTeacherId}")
+    public AdminTeacherResponse updateTeacher(
+            @RequestHeader("Authorization") String authorizationHeader,
+            @PathVariable Long targetTeacherId,
+            @RequestBody UpdateTeacherRequest request
+    ) {
+        Long teacherId = teacherAppService.extractTeacherId(authorizationHeader);
+        return adminService.updateTeacher(teacherId, targetTeacherId, request);
+    }
+
     @GetMapping("/students")
     public AdminStudentListResponse getStudents(
             @RequestHeader("Authorization") String authorizationHeader,
@@ -243,5 +262,24 @@ public class AdminController {
     ) {
         Long teacherId = teacherAppService.extractTeacherId(authorizationHeader);
         return adminService.getStudents(teacherId, activeOnly, keyword, limit, offset);
+    }
+
+    @PostMapping("/students")
+    public AdminStudentResponse createStudent(
+            @RequestHeader("Authorization") String authorizationHeader,
+            @RequestBody CreateStudentRequest request
+    ) {
+        Long teacherId = teacherAppService.extractTeacherId(authorizationHeader);
+        return adminService.createStudent(teacherId, request);
+    }
+
+    @PatchMapping("/students/{targetStudentId}")
+    public AdminStudentResponse updateStudent(
+            @RequestHeader("Authorization") String authorizationHeader,
+            @PathVariable Long targetStudentId,
+            @RequestBody UpdateStudentRequest request
+    ) {
+        Long teacherId = teacherAppService.extractTeacherId(authorizationHeader);
+        return adminService.updateStudent(teacherId, targetStudentId, request);
     }
 }

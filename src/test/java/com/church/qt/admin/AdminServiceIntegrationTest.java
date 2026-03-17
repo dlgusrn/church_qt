@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -448,6 +449,33 @@ class AdminServiceIntegrationTest {
         assertTrue(moveResponse.skippedStudentIds().isEmpty());
         assertEquals(1, assignments.size());
         assertEquals(target.getId(), assignments.get(0).getYearClass().getId());
+    }
+
+    @Test
+    @DisplayName("관리자 교사 생성은 audit_logs에 운영 로그를 남긴다")
+    void createTeacher_writesAuditLog() {
+        Teacher admin = saveTeacher("admin_audit_writer", TeacherRole.ADMIN, true);
+
+        AdminTeacherResponse response = adminService.createTeacher(
+                admin.getId(),
+                new CreateTeacherRequest(
+                        "teacher_audit_writer",
+                        "Password123!",
+                        "감사교사",
+                        "010-2222-3333",
+                        "19900101",
+                        "TEACHER",
+                        true
+                )
+        );
+
+        Map<String, Object> row = jdbcTemplate.queryForMap(
+                "select actor_teacher_id, action_type, detail from audit_logs order by id desc limit 1"
+        );
+
+        assertEquals(admin.getId(), ((Number) row.get("actor_teacher_id")).longValue());
+        assertEquals("CREATE_TEACHER", row.get("action_type"));
+        assertTrue(String.valueOf(row.get("detail")).contains("teacherId=" + response.teacherId()));
     }
 
     private Teacher saveTeacher(String loginId, TeacherRole role, boolean active) {

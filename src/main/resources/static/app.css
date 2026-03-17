@@ -24,9 +24,15 @@ body[data-app-mode="teacher"] {
   box-sizing: border-box;
 }
 
+html,
+body {
+  min-height: 100%;
+}
+
 body {
   margin: 0;
-  background: linear-gradient(180deg, #eef4fb 0%, #f7faff 100%);
+  min-height: 100vh;
+  background: var(--bg);
   color: var(--ink);
   font-family: "Pretendard", "Apple SD Gothic Neo", sans-serif;
 }
@@ -35,20 +41,17 @@ body {
   width: 100%;
   max-width: 720px;
   margin: 0 auto;
-  padding: 12px 12px 28px;
+  padding: 18px 12px 28px;
 }
 
 .app-header {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: var(--card);
-  position: sticky;
-  top: 8px;
-  z-index: 15;
+  padding: 4px 2px 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .kicker {
@@ -65,10 +68,17 @@ h1 {
 }
 
 .icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 0;
   border-radius: 9px;
   width: 34px;
   height: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0;
+  line-height: 1;
   background: var(--primary-ghost);
   color: #1557a3;
   font-size: 18px;
@@ -80,7 +90,7 @@ h1 {
 }
 
 .notice {
-  margin-top: 10px;
+  margin-top: 6px;
   padding: 10px 12px;
   border-radius: 10px;
   font-size: 13px;
@@ -90,7 +100,7 @@ h1 {
 }
 
 .loading {
-  margin-top: 10px;
+  margin-top: 6px;
   padding: 8px 12px;
   border-radius: 10px;
   border: 1px solid #cfe0f5;
@@ -100,12 +110,70 @@ h1 {
   font-weight: 700;
 }
 
+.student-banner {
+  margin-top: 4px;
+}
+
+.student-banner-frame {
+  position: relative;
+  min-height: 132px;
+  border: 1px solid #d9e5f3;
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, #f4fbf7 0%, #edf6ff 48%, #fdfefe 100%);
+  overflow: hidden;
+}
+
+.student-banner-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 132px;
+  object-fit: cover;
+}
+
 .panel {
   margin-top: 10px;
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: var(--card);
+}
+
+.simple-panel {
+  padding: 18px 16px 16px;
+  border-radius: 18px;
+  box-shadow: 0 10px 30px #16324a0a;
+}
+
+.simple-panel-plain {
+  padding-top: 14px;
+}
+
+.simple-hero {
+  margin-bottom: 14px;
+}
+
+.simple-kicker {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+.simple-title {
+  margin: 8px 0 0;
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.simple-copy {
+  margin: 8px 0 0;
+  color: var(--sub);
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .panel + .panel {
@@ -124,10 +192,18 @@ h1 {
   gap: 10px;
 }
 
+.simple-auth-row {
+  gap: 12px;
+}
+
 .auth-submit {
   margin-top: 10px;
   display: flex;
   justify-content: center;
+}
+
+.simple-auth-submit {
+  margin-top: 14px;
 }
 
 .auth-submit button {
@@ -153,6 +229,22 @@ select {
   border-radius: 10px;
   padding: 10px;
   background: #fff;
+}
+
+.simple-field {
+  gap: 6px;
+}
+
+.simple-field span {
+  color: var(--sub);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.simple-field input {
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #fbfcfe;
 }
 
 button {
@@ -185,6 +277,35 @@ button.ghost {
   border-radius: 12px;
   padding: 10px;
   background: #fff;
+}
+
+.simple-list {
+  margin-top: 12px;
+}
+
+.simple-choice {
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: #fcfdff;
+}
+
+.simple-choice .item-head {
+  align-items: center;
+}
+
+.simple-choice .item-title {
+  font-size: 15px;
+}
+
+.simple-meta {
+  color: var(--sub);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.auth-panel button {
+  width: 100%;
+  max-width: none;
 }
 
 button.item-card {
@@ -261,6 +382,16 @@ button.item-card:active {
 .compact-head .item-sub {
   margin-top: 2px;
   font-size: 12px;
+}
+
+.compact-head-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.compact-back-btn {
+  flex: 0 0 auto;
 }
 
 .calendar-nav {
@@ -467,6 +598,23 @@ button.day-cell {
 }
 
 @media (max-width: 720px) {
+  .student-banner-frame {
+    min-height: 112px;
+    border-radius: 18px;
+  }
+
+  .student-banner-image {
+    min-height: 112px;
+  }
+
+  .simple-panel {
+    padding: 16px 14px 14px;
+  }
+
+  .simple-title {
+    font-size: 22px;
+  }
+
   .summary .value {
     font-size: 17px;
   }
@@ -477,13 +625,6 @@ button.day-cell {
 
   .day-cell {
     min-height: 82px;
-  }
-
-  .calendar-nav {
-    position: sticky;
-    top: 66px;
-    z-index: 10;
-    box-shadow: 0 6px 14px #25466d14;
   }
 
   .check-panel-fixed {

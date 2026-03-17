@@ -13,7 +13,7 @@ public record TeacherLoginResponse(
         return new TeacherLoginResponse(
                 teacher.getId(),
                 teacher.getTeacherName(),
-                teacher.getRole(),
+                teacher.getEffectiveRole(),
                 accessToken
         );
     }

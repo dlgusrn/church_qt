@@ -16,6 +16,7 @@ public class AdminConsoleAccessFilter extends OncePerRequestFilter {
 
     private static final Set<String> ADMIN_CONSOLE_PATHS = Set.of(
             "/admin",
+            "/app/admin",
             "/admin.html",
             "/admin.js",
             "/admin.css",

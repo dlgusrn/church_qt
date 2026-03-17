@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-BASE_URL="${1:-http://localhost:8080}"
+BASE_URL="${1:-http://localhost:8081}"
 ADMIN_ORIGIN="${2:-http://localhost:5173}"
 START_APP="${START_APP:-false}"
 
@@ -50,7 +50,7 @@ elif [[ "$START_APP" == "true" ]]; then
 
   server_port="$(echo "$BASE_URL" | sed -E 's#^https?://[^:/]+:([0-9]+).*$#\1#')"
   if [[ ! "$server_port" =~ ^[0-9]+$ ]]; then
-    server_port="8080"
+    server_port="8081"
   fi
 
   echo "[INFO] Retrying route verify with temporary app (SERVER_PORT=$server_port)"

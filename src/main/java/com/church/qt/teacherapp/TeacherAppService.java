@@ -133,7 +133,7 @@ public class TeacherAppService {
         return Jwts.builder()
                 .subject(String.valueOf(teacher.getId()))
                 .claim("teacherName", teacher.getTeacherName())
-                .claim("role", teacher.getRole().name())
+                .claim("role", teacher.getEffectiveRole().name())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(accessTokenExpirationSeconds)))
                 .signWith(getSigningKey())

@@ -2,12 +2,17 @@ package com.church.qt.admin;
 
 import com.church.qt.domain.student.Student;
 
+import java.time.LocalDateTime;
+
 public record AdminStudentResponse(
         Long studentId,
         String studentName,
         Integer schoolGrade,
         String contactNumber,
-        boolean active
+        String birthDate,
+        boolean active,
+        LocalDateTime createdAt,
+        LocalDateTime updatedAt
 ) {
     public static AdminStudentResponse from(Student student) {
         return new AdminStudentResponse(
@@ -15,7 +20,10 @@ public record AdminStudentResponse(
                 student.getStudentName(),
                 student.getSchoolGrade(),
                 student.getContactNumber(),
-                student.getActive()
+                student.getBirthDate(),
+                student.getActive(),
+                student.getCreatedAt(),
+                student.getUpdatedAt()
         );
     }
 }

@@ -77,6 +77,20 @@ class AdminControllerIntegrationTest {
     }
 
     @Test
+    @DisplayName("Authorization 헤더 없이 관리자 연도 조회 API 호출 시 401을 반환한다")
+    void getYears_withoutAuthorizationHeader_returnsUnauthorized() throws Exception {
+        HttpResponse<String> response = request(
+                "GET",
+                "/api/admin/years",
+                null,
+                null
+        );
+
+        assertEquals(401, response.statusCode());
+        assertTrue(response.body() != null && response.body().contains("인증 헤더가 필요합니다."));
+    }
+
+    @Test
     @DisplayName("교사 JWT로 관리자 API 호출 시 권한 오류를 반환한다")
     void getYears_withTeacherToken_returnsBadRequest() throws Exception {
         saveTeacher("teacher_login", "pass1234", TeacherRole.TEACHER, true);

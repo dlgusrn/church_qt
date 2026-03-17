@@ -2,13 +2,17 @@ package com.church.qt.admin;
 
 import com.church.qt.domain.yearclass.YearClass;
 
+import java.time.LocalDateTime;
+
 public record YearClassResponse(
         Long id,
         Long yearId,
         Integer yearValue,
         String className,
         Integer sortOrder,
-        boolean active
+        boolean active,
+        LocalDateTime createdAt,
+        LocalDateTime updatedAt
 ) {
     public static YearClassResponse from(YearClass yearClass) {
         return new YearClassResponse(
@@ -17,7 +21,9 @@ public record YearClassResponse(
                 yearClass.getYear().getYearValue(),
                 yearClass.getClassName(),
                 yearClass.getSortOrder(),
-                yearClass.getActive()
+                yearClass.getActive(),
+                yearClass.getCreatedAt(),
+                yearClass.getUpdatedAt()
         );
     }
 }

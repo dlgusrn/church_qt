@@ -12,6 +12,7 @@ import java.util.Optional;
 public interface TeacherRepository extends JpaRepository<Teacher, Long> {
 
     Optional<Teacher> findByLoginIdAndActiveTrue(String loginId);
+    Optional<Teacher> findByLoginId(String loginId);
     List<Teacher> findAllByOrderByTeacherNameAscIdAsc();
     List<Teacher> findByActiveTrueOrderByTeacherNameAscIdAsc();
 

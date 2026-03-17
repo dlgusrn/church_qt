@@ -29,6 +29,9 @@ public class Teacher extends BaseTimeEntity {
     @Column(name = "contact_number", length = 20)
     private String contactNumber;
 
+    @Column(name = "birth_date", length = 8)
+    private String birthDate;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false, length = 20)
     private TeacherRole role;
@@ -42,6 +45,7 @@ public class Teacher extends BaseTimeEntity {
             String passwordHash,
             String teacherName,
             String contactNumber,
+            String birthDate,
             TeacherRole role,
             Boolean active
     ) {
@@ -49,6 +53,7 @@ public class Teacher extends BaseTimeEntity {
         this.passwordHash = passwordHash;
         this.teacherName = teacherName;
         this.contactNumber = contactNumber;
+        this.birthDate = birthDate;
         this.role = role;
         this.active = active;
     }
@@ -56,11 +61,13 @@ public class Teacher extends BaseTimeEntity {
     public void updateInfo(
             String teacherName,
             String contactNumber,
+            String birthDate,
             TeacherRole role,
             Boolean active
     ) {
         this.teacherName = teacherName;
         this.contactNumber = contactNumber;
+        this.birthDate = birthDate;
         this.role = role;
         this.active = active;
     }
@@ -69,7 +76,11 @@ public class Teacher extends BaseTimeEntity {
         this.passwordHash = passwordHash;
     }
 
+    public TeacherRole getEffectiveRole() {
+        return this.role == null ? TeacherRole.TEACHER : this.role;
+    }
+
     public boolean isAdmin() {
-        return this.role == TeacherRole.ADMIN;
+        return getEffectiveRole() == TeacherRole.ADMIN;
     }
 }

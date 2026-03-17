@@ -14,7 +14,7 @@ public record AdminYearClassTeacherResponse(
                 yearClassTeacher.getTeacher().getId(),
                 yearClassTeacher.getTeacher().getTeacherName(),
                 yearClassTeacher.getTeacher().getContactNumber(),
-                yearClassTeacher.getTeacher().getRole().name(),
+                yearClassTeacher.getTeacher().getEffectiveRole().name(),
                 yearClassTeacher.getTeacher().getActive()
         );
     }

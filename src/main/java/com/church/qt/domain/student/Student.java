@@ -26,6 +26,9 @@ public class Student extends BaseTimeEntity {
     @Column(name = "contact_number", length = 20)
     private String contactNumber;
 
+    @Column(name = "birth_date", length = 8)
+    private String birthDate;
+
     @Column(name = "is_active", nullable = false)
     private Boolean active;
 
@@ -34,11 +37,13 @@ public class Student extends BaseTimeEntity {
             String studentName,
             Integer schoolGrade,
             String contactNumber,
+            String birthDate,
             Boolean active
     ) {
         this.studentName = studentName;
         this.schoolGrade = schoolGrade;
         this.contactNumber = contactNumber;
+        this.birthDate = birthDate;
         this.active = active;
     }
 
@@ -46,11 +51,13 @@ public class Student extends BaseTimeEntity {
             String studentName,
             Integer schoolGrade,
             String contactNumber,
+            String birthDate,
             Boolean active
     ) {
         this.studentName = studentName;
         this.schoolGrade = schoolGrade;
         this.contactNumber = contactNumber;
+        this.birthDate = birthDate;
         this.active = active;
     }
 

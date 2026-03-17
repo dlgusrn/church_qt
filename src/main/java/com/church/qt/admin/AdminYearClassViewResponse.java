@@ -2,6 +2,7 @@ package com.church.qt.admin;
 
 import com.church.qt.domain.yearclass.YearClass;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public record AdminYearClassViewResponse(
@@ -11,6 +12,8 @@ public record AdminYearClassViewResponse(
         String className,
         Integer sortOrder,
         boolean active,
+        LocalDateTime createdAt,
+        LocalDateTime updatedAt,
         List<AdminYearClassTeacherResponse> teachers,
         List<AdminYearClassStudentResponse> students
 ) {
@@ -26,6 +29,8 @@ public record AdminYearClassViewResponse(
                 yearClass.getClassName(),
                 yearClass.getSortOrder(),
                 yearClass.getActive(),
+                yearClass.getCreatedAt(),
+                yearClass.getUpdatedAt(),
                 teachers,
                 students
         );

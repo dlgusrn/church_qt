@@ -30,6 +30,7 @@ class AdminConsoleAccessDisabledIntegrationTest {
     @DisplayName("admin-console enabled=false 일 때 /admin 및 정적 리소스는 404를 반환한다")
     void adminResourcesBlockedWhenDisabled() throws Exception {
         assertEquals(404, get("/admin").statusCode());
+        assertEquals(404, get("/app/admin").statusCode());
         assertEquals(404, get("/admin.html").statusCode());
         assertEquals(404, get("/admin.js").statusCode());
         assertEquals(404, get("/admin.css").statusCode());

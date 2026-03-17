@@ -5,6 +5,8 @@
   const btnBack = document.getElementById("btnBack");
   const appToast = document.getElementById("appToast");
   const appLoading = document.getElementById("appLoading");
+  const appHeader = document.querySelector(".app-header");
+  const STUDENT_BANNER_IMAGE_URL = "";
 
   const TEACHER_TOKEN_KEY = "qt_teacher_access_token";
   const DEFAULT_STUDENT_YEAR = new Date().getFullYear();
@@ -32,6 +34,10 @@
   }
 
   function setLoading(loading) {
+    if (document.body.dataset.appMode === "student") {
+      appLoading.classList.add("hidden");
+      return;
+    }
     if (loading) {
       appLoading.classList.remove("hidden");
     } else {
@@ -67,8 +73,40 @@
       .replace(/"/g, "&quot;");
   }
 
+  function formatStudentHeading(displayName, studentName, schoolGrade) {
+    const safeDisplayName = String(displayName || "").trim();
+    if (safeDisplayName) {
+      return safeDisplayName;
+    }
+
+    const safeStudentName = String(studentName || "").trim();
+    const parsedGrade = Number(schoolGrade);
+    if (Number.isInteger(parsedGrade) && parsedGrade > 0) {
+      return `${safeStudentName} (${parsedGrade}학년)`;
+    }
+    return safeStudentName;
+  }
+
+  function renderStudentBanner() {
+    if (!STUDENT_BANNER_IMAGE_URL) {
+      return "";
+    }
+    return `
+      <section class="student-banner" aria-label="학생 배너 영역">
+        <div class="student-banner-frame">
+          <img class="student-banner-image" src="${escapeHtml(STUDENT_BANNER_IMAGE_URL)}" alt="" />
+        </div>
+      </section>
+    `;
+  }
+
   function setTitle(title) {
     screenTitle.textContent = title;
+  }
+
+  function setHeaderVisible(visible) {
+    if (!appHeader) return;
+    appHeader.classList.toggle("hidden", !visible);
   }
 
   function navigate(path) {
@@ -248,7 +286,8 @@
   async function renderStudentPickScreen() {
     setAppMode("student");
     clearError();
-    setTitle("학생 선택");
+    setHeaderVisible(false);
+    setTitle("");
     btnBack.classList.add("hidden");
 
     await ensureStudentCurrentYear();
@@ -256,9 +295,12 @@
     const sorted = sortByGradeDescName(students);
 
     appRoot.innerHTML = `
-      <section class="panel">
-        <label>이름 검색 <input id="studentSearchKeyword" type="text" placeholder="학생 이름 검색" /></label>
-        <div id="studentPickList" class="list" style="margin-top:10px;"></div>
+      ${renderStudentBanner()}
+      <section class="panel simple-panel simple-panel-plain">
+        <label class="simple-field">
+          <input id="studentSearchKeyword" type="text" placeholder="이름 검색" />
+        </label>
+        <div id="studentPickList" class="list simple-list"></div>
       </section>
     `;
 
@@ -277,11 +319,11 @@
       }
 
       document.getElementById("studentPickList").innerHTML = filtered.map(item => `
-        <button class="item-card student-pick" data-student-id="${item.studentId}">
+        <button class="item-card simple-choice student-pick" data-student-id="${item.studentId}">
           <div class="item-head">
             <span class="item-title">${escapeHtml(item.displayName || item.studentName)}</span>
+            <span class="simple-meta">${escapeHtml(item.schoolGrade || "-")}학년</span>
           </div>
-          <div class="item-sub">${escapeHtml(item.schoolGrade || "-")}학년</div>
         </button>
       `).join("");
 
@@ -304,8 +346,9 @@
   async function renderStudentCalendarScreen(studentId) {
     setAppMode("student");
     clearError();
-    setTitle("학생 달력");
-    btnBack.classList.remove("hidden");
+    setHeaderVisible(false);
+    setTitle("");
+    btnBack.classList.add("hidden");
 
     await ensureStudentCurrentYear();
     let { year, month } = readYearMonthFromQuery(cachedStudentCurrentYear || DEFAULT_STUDENT_YEAR);
@@ -325,10 +368,11 @@
     const nextDate = new Date(year, month, 1);
 
     appRoot.innerHTML = `
+      ${renderStudentBanner()}
       <section class="panel">
-        <div class="compact-head">
-          <div class="item-title">${escapeHtml(body.displayName || body.studentName)}</div>
-          <div class="item-sub">${escapeHtml(body.studentName || "")}</div>
+        <div class="compact-head compact-head-row">
+          <button id="btnStudentCalendarBack" class="icon-btn compact-back-btn" aria-label="뒤로가기">←</button>
+          <div class="item-title">${escapeHtml(formatStudentHeading(body.displayName, body.studentName, body.schoolGrade))}</div>
         </div>
         <div class="summary">
           <div class="box"><div class="label">QT 개수</div><div class="value">${body.summary.qtCount}</div></div>
@@ -345,6 +389,10 @@
         <div class="legend">🍇 QT 완료 · 🫒 노트 완료 · 파란 배경은 오늘</div>
       </section>
     `;
+
+    document.getElementById("btnStudentCalendarBack").addEventListener("click", () => {
+      navigate("/app/student");
+    });
 
     document.getElementById("btnPrevMonth").addEventListener("click", () => {
       navigate(buildPathWithYearMonth(`/app/student/calendar/${studentId}`, prevDate.getFullYear(), prevDate.getMonth() + 1));
@@ -369,17 +417,28 @@
   async function renderTeacherLoginScreen() {
     setAppMode("teacher");
     clearError();
-    setTitle("교사 로그인");
+    setHeaderVisible(false);
+    setTitle("");
     btnBack.classList.add("hidden");
 
     const savedLoginId = localStorage.getItem(TEACHER_LOGIN_ID_KEY) || "";
     appRoot.innerHTML = `
-      <section class="panel">
-        <div class="auth-row">
-          <label>아이디 <input id="teacherLoginId" type="text" value="${escapeHtml(savedLoginId)}" placeholder="loginId" /></label>
-          <label>비밀번호 <input id="teacherPassword" type="password" placeholder="password" /></label>
+      <section class="panel simple-panel auth-panel">
+        <div class="simple-hero">
+          <h2 class="simple-title">로그인</h2>
+          <p class="simple-copy">최초 비밀번호는 생년월일 8자리입니다.</p>
         </div>
-        <div class="auth-submit">
+        <div class="auth-row simple-auth-row">
+          <label class="simple-field">
+            <span>아이디</span>
+            <input id="teacherLoginId" type="text" value="${escapeHtml(savedLoginId)}" placeholder="아이디 입력" />
+          </label>
+          <label class="simple-field">
+            <span>비밀번호</span>
+            <input id="teacherPassword" type="password" placeholder="비밀번호 입력" />
+          </label>
+        </div>
+        <div class="auth-submit simple-auth-submit">
           <button id="btnTeacherLogin">로그인</button>
         </div>
       </section>
@@ -422,6 +481,7 @@
   async function renderTeacherStudentsScreen() {
     setAppMode("teacher");
     clearError();
+    setHeaderVisible(true);
     setTitle("교사 학생 목록");
     btnBack.classList.add("hidden");
 
@@ -522,6 +582,7 @@
   async function renderTeacherCalendarScreen(studentId) {
     setAppMode("teacher");
     clearError();
+    setHeaderVisible(true);
     setTitle("학생 체크");
     btnBack.classList.remove("hidden");
 

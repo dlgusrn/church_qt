@@ -3,104 +3,175 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>QT Admin Ops</title>
+  <title>QT 관리자 페이지</title>
   <link rel="stylesheet" href="/admin.css" />
 </head>
 <body>
-<div class="bg-shape bg-a"></div>
-<div class="bg-shape bg-b"></div>
-<div class="bg-shape bg-c"></div>
-
 <main class="wrap">
   <header class="hero">
     <div>
-      <p class="eyebrow">Church QT Operations</p>
-      <h1>Admin Operations Console</h1>
-      <p class="sub">운영 전환 기준으로 연도/반/배정/로그를 통합 관리합니다.</p>
+      <h1>관리자 페이지</h1>
     </div>
-    <div class="hero-chips">
-      <span class="chip">Bootstrap v1</span>
-      <span class="chip">JWT Admin</span>
-      <span class="chip">Audit Ready</span>
+    <div class="hero-actions">
+      <button id="btnAdminLogout" class="ghost hidden" type="button">로그아웃</button>
     </div>
   </header>
 
-  <section class="panel panel-auth">
-    <h2>접근 제어</h2>
-    <div class="row">
-      <label>아이디 <input id="loginId" type="text" placeholder="admin loginId" /></label>
-      <label>비밀번호 <input id="password" type="password" placeholder="password" /></label>
-      <button id="btnLogin">로그인</button>
-      <button id="btnSaveToken" class="ghost">토큰 저장</button>
-      <button id="btnClearToken" class="ghost">토큰 삭제</button>
+  <section id="adminAuthSection" class="panel panel-auth">
+    <div class="section-head">
+      <div>
+        <h2>관리자 로그인</h2>
+      </div>
     </div>
-    <label>Access Token <textarea id="token" rows="3" placeholder="Bearer 제외. 토큰만 입력"></textarea></label>
+    <div class="auth-grid">
+      <label>아이디 <input id="loginId" type="text" placeholder="아이디" /></label>
+      <label>비밀번호 <input id="password" type="password" placeholder="비밀번호" /></label>
+      <button id="btnLogin">로그인</button>
+    </div>
+    <p id="adminLoginMessage" class="auth-message hidden" aria-live="polite"></p>
   </section>
 
-  <section class="ops-overview">
-    <article class="overview-card">
-      <h3>요청 상태</h3>
-      <p id="opsStatusCard">대기 중</p>
-    </article>
-    <article class="overview-card">
-      <h3>Undo 상태</h3>
-      <p id="opsUndoCard">되돌릴 작업 없음</p>
-    </article>
-    <article class="overview-card">
-      <h3>Bootstrap 계약</h3>
-      <p id="opsContractCard">-</p>
-    </article>
-    <article class="overview-card">
-      <h3>마지막 요청</h3>
-      <p id="opsRequestCard">-</p>
-    </article>
-  </section>
+  <section id="adminProtected" class="admin-protected hidden">
+  <nav class="tab-bar" aria-label="관리자 기능 탭">
+    <button class="tab-btn active" type="button" data-tab-target="dashboard">대시보드</button>
+    <button class="tab-btn" type="button" data-tab-target="yearclass">연도/반</button>
+    <button class="tab-btn" type="button" data-tab-target="pool">교사/학생</button>
+    <button class="tab-btn" type="button" data-tab-target="assignment">배정</button>
+    <button class="tab-btn" type="button" data-tab-target="audit">운영 로그</button>
+  </nav>
 
-  <div class="ops-shell">
-    <aside class="ops-nav">
-      <h2>운영 메뉴</h2>
-      <a href="#ops-bootstrap">Bootstrap/조회</a>
-      <a href="#ops-yearclass">연도/반 관리</a>
-      <a href="#ops-assignment">배정 작업</a>
-      <a href="#ops-audit">운영 로그</a>
-      <a href="#ops-pool">교사/학생 풀</a>
-      <a href="#ops-response">응답 페이로드</a>
-    </aside>
-
-    <div class="ops-layout">
-    <section id="ops-bootstrap" class="panel">
-      <h2>Bootstrap & 조회</h2>
-      <div class="row">
-        <button id="btnGetYears">연도 목록</button>
-        <button id="btnBootstrap" class="ghost">초기 로딩</button>
+  <div class="ops-layout">
+    <section id="ops-bootstrap" class="panel tab-panel active" data-tab-panel="dashboard">
+      <div class="section-head">
+        <div class="title-row">
+          <h2>대시보드</h2>
+          <span id="dashboardYearBadge" class="badge-soft">활성 연도 : -</span>
+        </div>
+      </div>
+      <div id="statusLine" class="status">대기 중</div>
+      <section class="dashboard-ranking-panel">
+        <div class="manager-head">
+          <div>
+            <h3>전체 아이들 열매 순위</h3>
+            <p class="section-copy">현재 활성 연도 전체 학생 기준 QT 개수 순위입니다.</p>
+          </div>
+        </div>
+        <div id="dashboardOverallRanking" class="table-card"></div>
+      </section>
+      <div id="dashboardClassBoard" class="dashboard-board"></div>
+      <div class="hidden">
+        <button id="btnBootstrap" class="ghost" type="button">초기 로딩</button>
         <label>조회 연도 <input id="queryYear" type="number" placeholder="2026" /></label>
-        <button id="btnGetYearClasses">반 목록 조회</button>
-        <label>반 ID <input id="queryYearClassId" type="number" placeholder="1" /></label>
-        <button id="btnGetYearClass">반 상세 조회</button>
-      </div>
-      <div class="row top-gap">
-        <label><input id="bootstrapIncludeYearClasses" type="checkbox" checked /> yearClasses 포함</label>
-        <label><input id="bootstrapIncludeActionTypes" type="checkbox" checked /> actionTypes 포함</label>
-        <label><input id="bootstrapIncludePools" type="checkbox" checked /> pools 포함</label>
-        <label><input id="bootstrapIncludeAuditLogs" type="checkbox" checked /> auditLogs 포함</label>
-        <button id="btnBootstrapPresetFull" class="ghost">프리셋: 전체</button>
-        <button id="btnBootstrapPresetLite" class="ghost">프리셋: 경량</button>
-      </div>
-      <div id="bootstrapSummaryHint" class="status">bootstrap 요약: 모드=전체 / 계약=- / 최근 로드=없음 / 요청=-</div>
-      <div class="row top-gap">
+        <button id="btnGetYearClasses" type="button">반 현황 조회</button>
         <label>반명 필터 <input id="filterClassName" type="text" placeholder="사랑" /></label>
         <label>교사명 필터 <input id="filterTeacherName" type="text" placeholder="김" /></label>
         <label>학생명 필터 <input id="filterStudentName" type="text" placeholder="이" /></label>
         <label><input id="filterActiveOnly" type="checkbox" /> 활성 반만</label>
-        <button id="btnApplyFilter" class="ghost">필터 적용</button>
+        <button id="btnApplyFilter" class="ghost" type="button">필터 적용</button>
       </div>
-      <div id="statusLine" class="status">대기 중</div>
-      <div id="yearClassList" class="list"></div>
     </section>
 
-    <section id="ops-yearclass" class="panel">
-      <h2>연도 / 반 관리</h2>
-      <div class="form-grid">
+    <section id="ops-yearclass" class="panel tab-panel" data-tab-panel="yearclass">
+      <div class="section-head">
+        <div>
+          <h2>연도 / 반 관리</h2>
+          <p class="section-copy">목록에서 연도와 반을 확인하고, 추가/수정 화면에서 필요한 값만 입력합니다.</p>
+        </div>
+      </div>
+      <div class="subtab-bar" aria-label="연도 반 관리 서브탭">
+        <button class="subtab-btn active" type="button" data-yearclass-tab-target="years">연도 관리</button>
+        <button class="subtab-btn" type="button" data-yearclass-tab-target="classes">반 관리</button>
+      </div>
+      <div class="yearclass-stack">
+        <section class="manager-panel yearclass-panel active" data-yearclass-panel="years">
+          <div class="manager-head">
+            <div>
+              <h3>연도 목록</h3>
+              <p class="section-copy">현재 운영에 사용할 연도를 확인하고 활성 상태를 관리합니다.</p>
+            </div>
+            <button id="btnOpenCreateYear" type="button">연도 추가</button>
+          </div>
+          <div id="yearManagementList" class="table-card"></div>
+        </section>
+
+        <section class="manager-panel yearclass-panel" data-yearclass-panel="classes">
+          <div class="manager-head">
+            <div>
+              <h3>반 목록</h3>
+              <p class="section-copy">현재 등록된 연도를 선택한 뒤 반을 추가하거나 수정합니다.</p>
+            </div>
+            <button id="btnOpenCreateClass" type="button">반 추가</button>
+          </div>
+          <div class="toolbar-row">
+            <label>연도 선택
+              <select id="classManagementYearFilter"></select>
+            </label>
+          </div>
+          <div id="classManagementList" class="table-card"></div>
+        </section>
+      </div>
+
+      <section id="yearEditorPanel" class="editor-panel hidden">
+        <div class="manager-head">
+          <div>
+            <h3 id="yearEditorTitle">연도 추가</h3>
+            <p class="section-copy">연도와 활성 여부만 설정합니다.</p>
+          </div>
+          <div class="row-actions">
+            <button id="btnCloseYearEditor" class="ghost" type="button">닫기</button>
+            <button id="btnSubmitYearEditor" type="button">저장</button>
+          </div>
+        </div>
+        <div class="form-grid compact-form">
+          <label class="field-block">연도
+            <input id="yearEditorValue" type="number" placeholder="2026" />
+          </label>
+        </div>
+        <div class="toggle-grid top-gap">
+          <label class="toggle-card" for="yearEditorActive">
+            <span class="toggle-card-head">
+              <input id="yearEditorActive" type="checkbox" checked />
+              <strong>활성</strong>
+            </span>
+            <span class="toggle-card-copy">관리자 화면과 조회 대상에서 사용할 연도로 유지합니다.</span>
+          </label>
+        </div>
+      </section>
+
+      <section id="classEditorPanel" class="editor-panel hidden">
+        <div class="manager-head">
+          <div>
+            <h3 id="classEditorTitle">반 추가</h3>
+            <p class="section-copy">연도를 선택하고 반 이름을 입력한 뒤 저장합니다.</p>
+          </div>
+          <div class="row-actions">
+            <button id="btnCloseClassEditor" class="ghost" type="button">닫기</button>
+            <button id="btnSubmitClassEditor" type="button">저장</button>
+          </div>
+        </div>
+        <div class="form-grid compact-form">
+          <label class="field-block">연도
+            <select id="classEditorYearValue"></select>
+          </label>
+          <label class="field-block">반 이름
+            <input id="classEditorName" type="text" placeholder="사랑반" />
+          </label>
+          <label class="field-block">정렬 순서
+            <input id="classEditorSortOrder" type="number" placeholder="1" />
+          </label>
+        </div>
+        <div class="toggle-grid top-gap">
+          <label class="toggle-card" for="classEditorActive">
+            <span class="toggle-card-head">
+              <input id="classEditorActive" type="checkbox" checked />
+              <strong>활성</strong>
+            </span>
+            <span class="toggle-card-copy">비활성으로 바꾸면 운영 목록에서 숨기거나 제외할 수 있습니다.</span>
+          </label>
+        </div>
+      </section>
+
+      <div class="legacy-form hidden">
         <fieldset>
           <legend>연도 생성</legend>
           <label>yearValue <input id="createYearValue" type="number" placeholder="2026" /></label>
@@ -136,13 +207,83 @@
       </div>
     </section>
 
-    <section id="ops-assignment" class="panel">
-      <h2>배정 작업</h2>
-      <div class="row">
-        <button id="btnUndoLastAction" class="ghost">마지막 작업 되돌리기</button>
-        <span id="undoHint" class="status">되돌릴 작업 없음</span>
+    <section id="ops-assignment" class="panel tab-panel" data-tab-panel="assignment">
+      <div class="section-head">
+        <div>
+          <h2>배정 작업</h2>
+          <p class="section-copy">반을 선택한 뒤 교사와 학생을 체크해서 배정하거나 해제합니다.</p>
+        </div>
       </div>
-      <div class="form-grid">
+      <div class="assignment-header">
+        <label class="field-block assignment-target-field">반 선택
+          <select id="assignmentYearClassSelect"></select>
+        </label>
+        <div id="assignmentTargetSummary" class="assignment-target-summary">선택한 반 정보가 없습니다.</div>
+      </div>
+      <div class="manager-grid top-gap">
+        <section class="manager-panel">
+          <div class="manager-head">
+            <div>
+              <h3>교사 배정</h3>
+              <p class="section-copy">현재 반에 배정된 교사와 전체 교사 목록을 함께 보고 선택합니다.</p>
+            </div>
+            <div class="row-actions">
+              <button id="btnAssignmentAssignTeachers" type="button">선택 배정</button>
+              <button id="btnAssignmentUnassignTeachers" class="ghost" type="button">선택 해제</button>
+            </div>
+          </div>
+          <div class="toolbar-row">
+            <label class="field-block">교사 검색
+              <input id="assignmentTeacherKeyword" type="text" placeholder="이름 또는 아이디 검색" />
+            </label>
+            <label class="toggle-inline">
+              <input id="assignmentTeacherAssignedOnly" type="checkbox" />
+              배정된 교사만 보기
+            </label>
+          </div>
+          <div id="assignmentTeacherList" class="table-card"></div>
+        </section>
+
+        <section class="manager-panel">
+          <div class="manager-head">
+            <div>
+              <h3>학생 배정</h3>
+              <p class="section-copy">현재 반 소속 학생과 전체 학생 목록을 보고 바로 배정/해제합니다.</p>
+            </div>
+            <div class="row-actions">
+              <button id="btnAssignmentAssignStudents" type="button">선택 배정</button>
+              <button id="btnAssignmentUnassignStudents" class="ghost" type="button">선택 해제</button>
+            </div>
+          </div>
+          <div class="toolbar-row">
+            <label class="field-block">학생 검색
+              <input id="assignmentStudentKeyword" type="text" placeholder="이름 검색" />
+            </label>
+            <label class="toggle-inline">
+              <input id="assignmentStudentAssignedOnly" type="checkbox" />
+              배정된 학생만 보기
+            </label>
+          </div>
+          <div id="assignmentStudentList" class="table-card"></div>
+        </section>
+      </div>
+      <section class="manager-panel top-gap">
+        <div class="manager-head">
+          <div>
+            <h3>학생 이동</h3>
+            <p class="section-copy">현재 반에서 선택한 학생을 다른 반으로 바로 이동합니다.</p>
+          </div>
+          <div class="row-actions">
+            <button id="btnAssignmentMoveStudents" type="button">선택 학생 이동</button>
+          </div>
+        </div>
+        <div class="toolbar-row">
+          <label class="field-block">이동할 반
+            <select id="assignmentMoveTargetYearClassSelect"></select>
+          </label>
+        </div>
+      </section>
+      <div class="legacy-form hidden">
         <fieldset>
           <legend>교사 배정</legend>
           <label>yearClassId <input id="assignTeacherYearClassId" type="number" placeholder="1" /></label>
@@ -165,8 +306,176 @@
       </div>
     </section>
 
-    <section id="ops-audit" class="panel">
-      <h2>운영 로그 (audit_logs)</h2>
+    <section id="ops-pool" class="panel tab-panel" data-tab-panel="pool">
+      <div class="section-head">
+        <div>
+          <h2>교사 / 학생 관리</h2>
+          <p class="section-copy">교사와 학생 정보를 각각 조회하고 추가/수정합니다.</p>
+        </div>
+      </div>
+      <div class="subtab-bar" aria-label="교사 학생 관리 서브탭">
+        <button class="subtab-btn active" type="button" data-pool-tab-target="teachers">교사 관리</button>
+        <button class="subtab-btn" type="button" data-pool-tab-target="students">학생 관리</button>
+      </div>
+      <div class="pool-stack">
+        <section class="manager-panel pool-panel active" data-pool-panel="teachers">
+          <div class="manager-head">
+            <div>
+              <h3>교사 목록</h3>
+              <p class="section-copy">로그인 ID, 이름, 권한, 상태를 확인하고 수정합니다.</p>
+            </div>
+            <div class="row-actions">
+              <button id="btnOpenCreateTeacher" type="button">교사 추가</button>
+              <button id="btnTeacherPrev" class="ghost" type="button">이전</button>
+              <button id="btnTeacherNext" class="ghost" type="button">다음</button>
+            </div>
+          </div>
+          <div class="toolbar-row">
+            <label class="field-block">검색
+              <input id="teacherKeyword" type="text" placeholder="이름 또는 아이디 검색" />
+            </label>
+            <label class="toggle-inline">
+              <input id="teacherActiveOnly" type="checkbox" checked />
+              활성만 보기
+            </label>
+            <label class="field-block">페이지 크기
+              <input id="teacherPageSize" type="number" value="10" min="5" max="200" />
+            </label>
+            <button id="btnLoadTeacherPool" type="button">조회</button>
+            <span id="teacherPageInfo" class="status">0 / 0</span>
+          </div>
+          <div id="teacherManagementList" class="table-card"></div>
+        </section>
+
+        <section class="manager-panel pool-panel" data-pool-panel="students">
+          <div class="manager-head">
+            <div>
+              <h3>학생 목록</h3>
+              <p class="section-copy">학생명, 학년, 연락처, 상태를 확인하고 수정합니다.</p>
+            </div>
+            <div class="row-actions">
+              <button id="btnOpenCreateStudent" type="button">학생 추가</button>
+              <button id="btnStudentPrev" class="ghost" type="button">이전</button>
+              <button id="btnStudentNext" class="ghost" type="button">다음</button>
+            </div>
+          </div>
+          <div class="toolbar-row">
+            <label class="field-block">검색
+              <input id="studentKeyword" type="text" placeholder="학생 이름 검색" />
+            </label>
+            <label class="toggle-inline">
+              <input id="studentActiveOnly" type="checkbox" checked />
+              활성만 보기
+            </label>
+            <label class="field-block">페이지 크기
+              <input id="studentPageSize" type="number" value="10" min="5" max="200" />
+            </label>
+            <button id="btnLoadStudentPool" type="button">조회</button>
+            <span id="studentPageInfo" class="status">0 / 0</span>
+          </div>
+          <div id="studentManagementList" class="table-card"></div>
+        </section>
+      </div>
+      <div class="legacy-form hidden">
+        <fieldset>
+          <legend>교사 풀</legend>
+          <div id="teacherPool" class="pool"></div>
+        </fieldset>
+        <fieldset>
+          <legend>학생 풀</legend>
+          <div id="studentPool" class="pool"></div>
+        </fieldset>
+      </div>
+
+      <section id="teacherEditorPanel" class="editor-panel hidden">
+        <div class="manager-head">
+          <div>
+            <h3 id="teacherEditorTitle">교사 추가</h3>
+            <p class="section-copy">로그인 정보와 권한을 입력한 뒤 저장합니다.</p>
+          </div>
+          <div class="row-actions">
+            <button id="btnCloseTeacherEditor" class="ghost" type="button">닫기</button>
+            <button id="btnSubmitTeacherEditor" type="button">저장</button>
+          </div>
+        </div>
+        <div class="form-grid compact-form">
+          <label class="field-block">로그인 ID
+            <input id="teacherEditorLoginId" type="text" placeholder="teacher01" />
+          </label>
+          <label class="field-block">이름
+            <input id="teacherEditorName" type="text" placeholder="홍길동" />
+          </label>
+          <label class="field-block">비밀번호
+            <input id="teacherEditorPassword" type="password" placeholder="초기 비밀번호" />
+          </label>
+          <label class="field-block">연락처
+            <input id="teacherEditorContactNumber" type="text" placeholder="010-0000-0000" />
+          </label>
+          <label class="field-block">생년월일
+            <input id="teacherEditorBirthDate" type="text" inputmode="numeric" maxlength="8" placeholder="19990101" />
+          </label>
+          <label class="field-block">권한
+            <select id="teacherEditorRole">
+              <option value="TEACHER">교사</option>
+              <option value="ADMIN">관리자</option>
+            </select>
+          </label>
+        </div>
+        <div class="toggle-grid top-gap">
+          <label class="toggle-card" for="teacherEditorActive">
+            <span class="toggle-card-head">
+              <input id="teacherEditorActive" type="checkbox" checked />
+              <strong>활성</strong>
+            </span>
+            <span class="toggle-card-copy">비활성으로 바꾸면 로그인과 운영 목록에서 제외할 수 있습니다.</span>
+          </label>
+        </div>
+      </section>
+
+      <section id="studentEditorPanel" class="editor-panel hidden">
+        <div class="manager-head">
+          <div>
+            <h3 id="studentEditorTitle">학생 추가</h3>
+            <p class="section-copy">학생 기본 정보만 입력한 뒤 저장합니다.</p>
+          </div>
+          <div class="row-actions">
+            <button id="btnCloseStudentEditor" class="ghost" type="button">닫기</button>
+            <button id="btnSubmitStudentEditor" type="button">저장</button>
+          </div>
+        </div>
+        <div class="form-grid compact-form">
+          <label class="field-block">이름
+            <input id="studentEditorName" type="text" placeholder="김학생" />
+          </label>
+          <label class="field-block">학년
+            <input id="studentEditorSchoolGrade" type="number" placeholder="6" />
+          </label>
+          <label class="field-block">연락처
+            <input id="studentEditorContactNumber" type="text" placeholder="010-0000-0000" />
+          </label>
+          <label class="field-block">생년월일
+            <input id="studentEditorBirthDate" type="text" inputmode="numeric" maxlength="8" placeholder="20120101" />
+          </label>
+        </div>
+        <div class="toggle-grid top-gap">
+          <label class="toggle-card" for="studentEditorActive">
+            <span class="toggle-card-head">
+              <input id="studentEditorActive" type="checkbox" checked />
+              <strong>활성</strong>
+            </span>
+            <span class="toggle-card-copy">비활성으로 바꾸면 학생 목록과 앱 사용 대상에서 제외할 수 있습니다.</span>
+          </label>
+        </div>
+      </section>
+    </section>
+
+    <section id="ops-audit" class="panel tab-panel" data-tab-panel="audit">
+      <div class="section-head">
+        <div>
+          <h2>운영 로그</h2>
+          <p class="section-copy">작업 이력을 기간, 담당자, 액션 타입 기준으로 조회합니다.</p>
+        </div>
+      </div>
       <div class="row">
         <label>limit <input id="auditLimit" type="number" value="100" /></label>
         <label>offset <input id="auditOffset" type="number" value="0" /></label>
@@ -185,48 +494,10 @@
         <button id="btnDownloadAuditCsv" class="ghost">CSV 다운로드</button>
         <button id="btnLoadActionTypes" class="ghost">actionType 목록</button>
       </div>
-      <pre id="auditResult"></pre>
+      <div id="auditResult" class="table-card"></div>
     </section>
-
-    <section id="ops-pool" class="panel">
-      <h2>교사 / 학생 풀</h2>
-      <div class="row">
-        <label>검색어 <input id="poolKeyword" type="text" placeholder="이름 검색" /></label>
-        <label><input id="poolActiveOnly" type="checkbox" checked /> 활성만</label>
-        <label>페이지 크기 <input id="poolPageSize" type="number" value="20" min="5" max="200" /></label>
-        <button id="btnLoadTeacherPool">교사 풀 조회</button>
-        <button id="btnLoadStudentPool">학생 풀 조회</button>
-        <button id="btnAssignSelectedTeachers" class="ghost">선택 교사 배정</button>
-        <button id="btnAssignSelectedStudents" class="ghost">선택 학생 배정</button>
-      </div>
-      <div class="form-grid top-gap">
-        <fieldset>
-          <legend>교사 풀</legend>
-          <div class="row">
-            <button id="btnTeacherPrev" class="ghost">이전</button>
-            <button id="btnTeacherNext" class="ghost">다음</button>
-            <span id="teacherPageInfo" class="status">0 / 0</span>
-          </div>
-          <div id="teacherPool" class="pool"></div>
-        </fieldset>
-        <fieldset>
-          <legend>학생 풀</legend>
-          <div class="row">
-            <button id="btnStudentPrev" class="ghost">이전</button>
-            <button id="btnStudentNext" class="ghost">다음</button>
-            <span id="studentPageInfo" class="status">0 / 0</span>
-          </div>
-          <div id="studentPool" class="pool"></div>
-        </fieldset>
-      </div>
-    </section>
-
-    <section id="ops-response" class="panel">
-      <h2>응답 페이로드</h2>
-      <pre id="result"></pre>
-    </section>
-    </div>
   </div>
+  </section>
 </main>
 
 <script src="/admin.js"></script>

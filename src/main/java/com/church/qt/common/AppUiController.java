@@ -50,4 +50,9 @@ public class AppUiController {
     public String teacherStudentCalendar() {
         return "forward:/app.html";
     }
+
+    @GetMapping("/app/admin")
+    public String adminHome() {
+        return "forward:/admin.html";
+    }
 }
