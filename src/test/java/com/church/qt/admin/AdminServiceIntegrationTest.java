@@ -393,6 +393,33 @@ class AdminServiceIntegrationTest {
     }
 
     @Test
+    @DisplayName("교사는 같은 연도의 다른 반에 중복 배정될 수 없다")
+    void assignTeacher_forbiddenWhenAssignedToAnotherClassInSameYear() {
+        Teacher admin = saveTeacher("admin_teacher_dup", TeacherRole.ADMIN, true);
+        Year year = saveYear(2027, true, true, true);
+        YearClass classA = saveYearClass(year, "온유반", 1, true);
+        YearClass classB = saveYearClass(year, "충성반", 2, true);
+        Teacher target = saveTeacher("teacher_dup_same_year", TeacherRole.TEACHER, true);
+
+        adminService.assignTeacherToYearClass(
+                admin.getId(),
+                classA.getId(),
+                new AssignYearClassTeacherRequest(List.of(target.getId()))
+        );
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> adminService.assignTeacherToYearClass(
+                        admin.getId(),
+                        classB.getId(),
+                        new AssignYearClassTeacherRequest(List.of(target.getId()))
+                )
+        );
+
+        assertTrue(exception.getMessage().contains("이미 이 연도에 다른 반"));
+    }
+
+    @Test
     @DisplayName("학생은 같은 연도의 다른 반에 중복 배정될 수 없다")
     void assignStudent_forbiddenWhenAssignedToAnotherClassInSameYear() {
         Teacher admin = saveTeacher("admin02", TeacherRole.ADMIN, true);
@@ -492,7 +519,6 @@ class AdminServiceIntegrationTest {
     private Student saveStudent(String name, Integer grade, boolean active) {
         return studentRepository.save(Student.builder()
                 .studentName(name)
-                .schoolGrade(grade)
                 .contactNumber("010-1111-1111")
                 .active(active)
                 .build());

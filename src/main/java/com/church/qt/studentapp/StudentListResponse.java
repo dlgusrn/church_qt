@@ -1,21 +1,21 @@
 package com.church.qt.studentapp;
 
-import com.church.qt.domain.student.Student;
+import com.church.qt.domain.yearstudent.YearStudent;
 
 public record StudentListResponse(
         Long studentId,
         String studentName,
-        Integer schoolGrade,
+        String schoolGrade,
         String displayName,
         String contactNumber
 ) {
-    public static StudentListResponse from(Student student) {
+    public static StudentListResponse from(YearStudent yearStudent) {
         return new StudentListResponse(
-                student.getId(),
-                student.getStudentName(),
-                student.getSchoolGrade(),
-                student.getDisplayName(),
-                student.getContactNumber()
+                yearStudent.getStudent().getId(),
+                yearStudent.getStudent().getStudentName(),
+                yearStudent.getSchoolGrade(),
+                yearStudent.buildDisplayName(),
+                yearStudent.getStudent().getContactNumber()
         );
     }
 }

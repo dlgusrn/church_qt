@@ -5,6 +5,7 @@ import com.church.qt.domain.devotion.DevotionCheckRepository;
 import com.church.qt.domain.student.Student;
 import com.church.qt.domain.student.StudentRepository;
 import com.church.qt.domain.teacher.Teacher;
+import com.church.qt.domain.teacher.TeacherRole;
 import com.church.qt.domain.teacher.TeacherRepository;
 import com.church.qt.domain.year.Year;
 import com.church.qt.domain.year.YearRepository;
@@ -75,7 +76,8 @@ public class TeacherAppService {
             throw new IllegalArgumentException("해당 학생은 이 연도에 속하지 않습니다.");
         }
 
-        if (!yearClassTeacherRepository.existsManageableStudent(teacherId, request.studentId(), request.year())) {
+        if (teacher.getEffectiveRole() != TeacherRole.ADMIN
+                && !yearClassTeacherRepository.existsManageableStudent(teacherId, request.studentId(), request.year())) {
             throw new IllegalArgumentException("해당 학생은 이 교사가 관리하는 학생이 아닙니다.");
         }
 
@@ -86,7 +88,7 @@ public class TeacherAppService {
                 .findByYearIdAndStudentIdAndCheckDate(year.getId(), student.getId(), request.date())
                 .orElse(null);
 
-        if (!request.qtChecked() && !request.noteChecked()) {
+        if (!request.qtChecked() && !request.attitudeChecked() && !request.noteChecked()) {
             if (check != null) {
                 devotionCheckRepository.delete(check);
             }
@@ -99,13 +101,14 @@ public class TeacherAppService {
                     .student(student)
                     .checkDate(request.date())
                     .qtChecked(request.qtChecked())
+                    .attitudeChecked(request.attitudeChecked())
                     .noteChecked(request.noteChecked())
                     .checkedByTeacher(teacher)
                     .build();
 
             devotionCheckRepository.save(check);
         } else {
-            check.updateChecks(request.qtChecked(), request.noteChecked(), teacher);
+            check.updateChecks(request.qtChecked(), request.attitudeChecked(), request.noteChecked(), teacher);
         }
     }
 

@@ -23,5 +23,7 @@ public interface DevotionCheckRepository extends JpaRepository<DevotionCheck, Lo
 
     long countByYearIdAndStudentIdAndQtCheckedTrue(Long yearId, Long studentId);
 
+    long countByYearIdAndStudentIdAndAttitudeCheckedTrue(Long yearId, Long studentId);
+
     long countByYearIdAndStudentIdAndNoteCheckedTrue(Long yearId, Long studentId);
 }

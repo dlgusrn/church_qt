@@ -7,6 +7,7 @@
   --primary: #0b6ed0;
   --primary-ghost: #e7f1fd;
   --qt: #8a5a00;
+  --attitude: #4b5f12;
   --note: #1d5f12;
 }
 
@@ -15,9 +16,311 @@ body[data-app-mode="student"] {
   --primary-ghost: #e6f6f1;
 }
 
+body[data-app-mode="student"] .app-shell {
+  padding: 12px 10px 20px;
+}
+
+body[data-app-mode="student"] .student-banner {
+  margin-top: 2px;
+}
+
+body[data-app-mode="student"] .student-banner-frame,
+body[data-app-mode="student"] .student-banner-image {
+  min-height: 112px;
+  border-radius: 16px;
+}
+
+body[data-app-mode="student"] .panel {
+  margin-top: 8px;
+  padding: 10px;
+  border-radius: 12px;
+}
+
+body[data-app-mode="student"] .simple-panel {
+  padding: 14px 12px 12px;
+  border-radius: 14px;
+}
+
+body[data-app-mode="student"] .simple-panel-plain {
+  padding-top: 10px;
+}
+
+body[data-app-mode="student"] .simple-list {
+  margin-top: 8px;
+}
+
+body[data-app-mode="student"] .simple-field input {
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+body[data-app-mode="student"] .simple-choice {
+  padding: 10px 12px;
+  border-radius: 12px;
+}
+
+body[data-app-mode="student"] .simple-choice .item-title,
+body[data-app-mode="student"] .compact-head .item-title {
+  font-size: 14px;
+}
+
+body[data-app-mode="student"] .simple-meta,
+body[data-app-mode="student"] .compact-head .item-sub,
+body[data-app-mode="student"] .legend {
+  font-size: 11px;
+}
+
+body[data-app-mode="student"] button {
+  min-height: 38px;
+  padding: 8px 10px;
+}
+
+body[data-app-mode="student"] .icon-btn {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  font-size: 16px;
+}
+
+body[data-app-mode="student"] .summary {
+  gap: 6px;
+  margin-top: 6px;
+}
+
+body[data-app-mode="student"] .summary .box {
+  padding: 7px 6px;
+}
+
+body[data-app-mode="student"] .summary .label {
+  font-size: 11px;
+}
+
+body[data-app-mode="student"] .summary .value {
+  margin-top: 2px;
+  font-size: 16px;
+}
+
+body[data-app-mode="student"] .calendar-nav {
+  margin-top: 8px;
+  gap: 6px;
+  padding: 5px;
+  border-radius: 10px;
+}
+
+body[data-app-mode="student"] .calendar-title {
+  font-size: 14px;
+}
+
+body[data-app-mode="student"] .calendar-nav button {
+  min-width: 60px;
+  min-height: 34px;
+  padding: 7px 8px;
+  font-size: 12px;
+}
+
+body[data-app-mode="student"] .weekday {
+  font-size: 11px;
+  padding: 6px 2px;
+}
+
+body[data-app-mode="student"] .day-cell {
+  min-height: 76px;
+  padding: 5px;
+}
+
+body[data-app-mode="student"] .day-num {
+  font-size: 11px;
+}
+
+body[data-app-mode="student"] .day-icons,
+body[data-app-mode="student"] .day-marker {
+  font-size: 13px;
+}
+
 body[data-app-mode="teacher"] {
   --primary: #0b6ed0;
   --primary-ghost: #e7f1fd;
+}
+
+body[data-app-mode="teacher"] .app-shell {
+  padding: 12px 10px 20px;
+}
+
+body[data-app-mode="teacher"] .panel {
+  margin-top: 8px;
+  padding: 10px;
+  border-radius: 12px;
+}
+
+body[data-app-mode="teacher"] .simple-panel {
+  padding: 14px 12px 12px;
+  border-radius: 14px;
+}
+
+body[data-app-mode="teacher"] .simple-title {
+  font-size: 21px;
+}
+
+body[data-app-mode="teacher"] .simple-copy {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+body[data-app-mode="teacher"] label {
+  gap: 3px;
+  font-size: 12px;
+}
+
+body[data-app-mode="teacher"] input[type="text"],
+body[data-app-mode="teacher"] input[type="password"],
+body[data-app-mode="teacher"] input[type="number"],
+body[data-app-mode="teacher"] select {
+  border-radius: 9px;
+  padding: 8px 9px;
+}
+
+body[data-app-mode="teacher"] button {
+  min-height: 38px;
+  padding: 8px 10px;
+}
+
+body[data-app-mode="teacher"] .icon-btn {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  font-size: 16px;
+}
+
+body[data-app-mode="teacher"] .item-title,
+body[data-app-mode="teacher"] .compact-head .item-title {
+  font-size: 14px;
+}
+
+body[data-app-mode="teacher"] .item-sub,
+body[data-app-mode="teacher"] .compact-head .item-sub,
+body[data-app-mode="teacher"] .legend {
+  font-size: 11px;
+}
+
+body[data-app-mode="teacher"] .row {
+  gap: 6px;
+}
+
+body[data-app-mode="teacher"] .summary {
+  gap: 6px;
+  margin-top: 6px;
+}
+
+body[data-app-mode="teacher"] .summary .box {
+  padding: 7px 6px;
+}
+
+body[data-app-mode="teacher"] .summary .label {
+  font-size: 11px;
+}
+
+body[data-app-mode="teacher"] .summary .value {
+  margin-top: 2px;
+  font-size: 16px;
+}
+
+body[data-app-mode="teacher"] .calendar-nav {
+  margin-top: 8px;
+  gap: 6px;
+  padding: 5px;
+  border-radius: 10px;
+}
+
+body[data-app-mode="teacher"] .calendar-title {
+  font-size: 14px;
+}
+
+body[data-app-mode="teacher"] .calendar-nav button {
+  min-width: 60px;
+  min-height: 34px;
+  padding: 7px 8px;
+  font-size: 12px;
+}
+
+body[data-app-mode="teacher"] .calendar-nav .today-cta {
+  background: #1f5fbf;
+  color: #fff;
+}
+
+body[data-app-mode="teacher"] .weekday {
+  font-size: 11px;
+  padding: 6px 2px;
+}
+
+body[data-app-mode="teacher"] .day-cell {
+  min-height: 76px;
+  padding: 5px;
+}
+
+body[data-app-mode="teacher"] .day-num,
+body[data-app-mode="teacher"] .day-birthday {
+  font-size: 11px;
+}
+
+body[data-app-mode="teacher"] .day-icons,
+body[data-app-mode="teacher"] .day-marker {
+  font-size: 13px;
+}
+
+body[data-app-mode="teacher"] .teacher-stats {
+  margin-top: 5px;
+  gap: 6px;
+  font-size: 11px;
+}
+
+body[data-app-mode="teacher"] .badge {
+  padding: 2px 6px;
+}
+
+body[data-app-mode="teacher"] .birthday-panel {
+  margin-top: 8px;
+  padding: 8px;
+}
+
+body[data-app-mode="teacher"] .birthday-title {
+  font-size: 12px;
+}
+
+body[data-app-mode="teacher"] .birthday-item {
+  padding: 7px 8px;
+}
+
+body[data-app-mode="teacher"] .birthday-name {
+  font-size: 13px;
+}
+
+body[data-app-mode="teacher"] .check-panel {
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: 10px;
+}
+
+body[data-app-mode="teacher"] .check-title {
+  font-size: 13px;
+}
+
+body[data-app-mode="teacher"] .switch-row,
+body[data-app-mode="teacher"] .quick-row,
+body[data-app-mode="teacher"] .save-row {
+  margin-top: 6px;
+  gap: 6px;
+}
+
+body[data-app-mode="teacher"] .quick-row button {
+  min-height: 32px;
+  font-size: 11px;
+}
+
+body[data-app-mode="teacher"] .switch-row label {
+  font-size: 12px;
 }
 
 * {
@@ -364,6 +667,10 @@ button.item-card:active {
   background: #f9fcff;
 }
 
+.summary .total-box {
+  grid-column: 1 / -1;
+}
+
 .summary .label {
   font-size: 12px;
   color: var(--sub);
@@ -446,15 +753,20 @@ button.item-card:active {
 }
 
 .day-cell {
-  min-height: 76px;
+  min-height: 92px;
   border-right: 1px solid #eef3fa;
   border-bottom: 1px solid #eef3fa;
   padding: 6px;
   background: #fff;
   text-align: left;
+  vertical-align: top;
 }
 
 button.day-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
   border-radius: 0;
   border: 0;
   color: var(--ink);
@@ -470,11 +782,67 @@ button.day-cell {
   color: #596a80;
 }
 
-.day-icons {
-  margin-top: 4px;
+.day-num-row {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.day-birthday {
+  flex: 0 0 auto;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.day-icons {
+  margin-top: auto;
+  padding-top: 6px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 2px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.day-icons-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   gap: 3px;
-  flex-wrap: wrap;
+  min-height: 18px;
+}
+
+.day-icons-row.bottom {
+  justify-content: space-between;
+}
+
+.day-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  min-height: 18px;
+  font-size: 14px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.day-marker.birthday {
+  color: inherit;
+}
+
+.day-marker.qt {
+  color: inherit;
+}
+
+.day-marker.attitude {
+  color: inherit;
+}
+
+.day-marker.note {
+  color: inherit;
 }
 
 .day-cell.today {
@@ -494,6 +862,73 @@ button.day-cell {
   margin-top: 8px;
   color: #5d6d82;
   font-size: 12px;
+}
+
+.birthday-panel {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px;
+  background: #fbfdff;
+}
+
+.birthday-title {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.birthday-list {
+  margin-top: 8px;
+  display: grid;
+  gap: 8px;
+}
+
+.birthday-item {
+  border: 1px solid #e4edf7;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: #ffffff;
+}
+
+.birthday-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.birthday-date {
+  font-size: 12px;
+  font-weight: 700;
+  color: #4d6280;
+}
+
+.birthday-type {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 38px;
+  min-height: 20px;
+  border-radius: 999px;
+  padding: 0 7px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.birthday-type.teacher {
+  background: #e8f0ff;
+  color: #24509a;
+}
+
+.birthday-type.student {
+  background: #eaf7f1;
+  color: #1d6d50;
+}
+
+.birthday-name {
+  margin-top: 5px;
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .teacher-stats {
@@ -516,8 +951,13 @@ button.day-cell {
 }
 
 .badge.note {
-  background: #e7f8e4;
+  background: #eef7de;
   color: var(--note);
+}
+
+.badge.attitude {
+  background: #f5f2cf;
+  color: var(--attitude);
 }
 
 .badge.total {
@@ -646,5 +1086,48 @@ button.day-cell {
   .check-panel-spacer {
     display: block;
     height: 170px;
+  }
+
+  body[data-app-mode="student"] .app-shell {
+    padding: 10px 8px 16px;
+  }
+
+  body[data-app-mode="student"] .student-banner-frame,
+  body[data-app-mode="student"] .student-banner-image {
+    min-height: 96px;
+    border-radius: 14px;
+  }
+
+  body[data-app-mode="student"] .simple-panel {
+    padding: 12px 10px 10px;
+  }
+
+  body[data-app-mode="student"] .day-cell {
+    min-height: 72px;
+  }
+
+  body[data-app-mode="teacher"] .app-shell {
+    padding: 10px 8px 16px;
+  }
+
+  body[data-app-mode="teacher"] .simple-panel {
+    padding: 12px 10px 10px;
+  }
+
+  body[data-app-mode="teacher"] .simple-title {
+    font-size: 19px;
+  }
+
+  body[data-app-mode="teacher"] .day-cell {
+    min-height: 72px;
+  }
+
+  body[data-app-mode="teacher"] .check-panel-fixed {
+    border-radius: 12px 12px 0 0;
+    padding: 8px;
+  }
+
+  body[data-app-mode="teacher"] .check-panel-spacer {
+    height: 150px;
   }
 }

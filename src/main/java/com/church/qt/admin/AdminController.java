@@ -75,6 +75,17 @@ public class AdminController {
         return adminService.unassignTeacherFromYearClass(teacherId, yearClassId, request);
     }
 
+    @PatchMapping("/year-classes/{yearClassId}/teachers/{targetTeacherId}/assignment-role")
+    public YearClassTeacherRoleUpdateResponse updateTeacherAssignmentRole(
+            @RequestHeader("Authorization") String authorizationHeader,
+            @PathVariable Long yearClassId,
+            @PathVariable Long targetTeacherId,
+            @RequestBody UpdateYearClassTeacherRoleRequest request
+    ) {
+        Long teacherId = teacherAppService.extractTeacherId(authorizationHeader);
+        return adminService.updateTeacherAssignmentRole(teacherId, yearClassId, targetTeacherId, request);
+    }
+
     @DeleteMapping("/year-classes/{yearClassId}/students")
     public YearClassStudentUnassignmentBatchResponse unassignStudentFromYearClass(
             @RequestHeader("Authorization") String authorizationHeader,
@@ -224,62 +235,68 @@ public class AdminController {
     @GetMapping("/teachers")
     public AdminTeacherListResponse getTeachers(
             @RequestHeader("Authorization") String authorizationHeader,
+            @RequestParam(required = false) Integer year,
             @RequestParam(required = false, defaultValue = "true") Boolean activeOnly,
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "20") Integer limit,
             @RequestParam(defaultValue = "0") Integer offset
     ) {
         Long teacherId = teacherAppService.extractTeacherId(authorizationHeader);
-        return adminService.getTeachers(teacherId, activeOnly, keyword, limit, offset);
+        return adminService.getTeachers(teacherId, year, activeOnly, keyword, limit, offset);
     }
 
     @PostMapping("/teachers")
     public AdminTeacherResponse createTeacher(
             @RequestHeader("Authorization") String authorizationHeader,
+            @RequestParam(required = false) Integer year,
             @RequestBody CreateTeacherRequest request
     ) {
         Long teacherId = teacherAppService.extractTeacherId(authorizationHeader);
-        return adminService.createTeacher(teacherId, request);
+        return adminService.createTeacher(teacherId, year, request);
     }
 
     @PatchMapping("/teachers/{targetTeacherId}")
     public AdminTeacherResponse updateTeacher(
             @RequestHeader("Authorization") String authorizationHeader,
             @PathVariable Long targetTeacherId,
+            @RequestParam(required = false) Integer year,
             @RequestBody UpdateTeacherRequest request
     ) {
         Long teacherId = teacherAppService.extractTeacherId(authorizationHeader);
-        return adminService.updateTeacher(teacherId, targetTeacherId, request);
+        return adminService.updateTeacher(teacherId, year, targetTeacherId, request);
     }
 
     @GetMapping("/students")
     public AdminStudentListResponse getStudents(
             @RequestHeader("Authorization") String authorizationHeader,
+            @RequestParam(required = false) Integer year,
             @RequestParam(required = false, defaultValue = "true") Boolean activeOnly,
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "20") Integer limit,
             @RequestParam(defaultValue = "0") Integer offset
     ) {
         Long teacherId = teacherAppService.extractTeacherId(authorizationHeader);
-        return adminService.getStudents(teacherId, activeOnly, keyword, limit, offset);
+        return adminService.getStudents(teacherId, year, activeOnly, keyword, limit, offset);
     }
 
     @PostMapping("/students")
     public AdminStudentResponse createStudent(
             @RequestHeader("Authorization") String authorizationHeader,
+            @RequestParam(required = false) Integer year,
             @RequestBody CreateStudentRequest request
     ) {
         Long teacherId = teacherAppService.extractTeacherId(authorizationHeader);
-        return adminService.createStudent(teacherId, request);
+        return adminService.createStudent(teacherId, year, request);
     }
 
     @PatchMapping("/students/{targetStudentId}")
     public AdminStudentResponse updateStudent(
             @RequestHeader("Authorization") String authorizationHeader,
             @PathVariable Long targetStudentId,
+            @RequestParam(required = false) Integer year,
             @RequestBody UpdateStudentRequest request
     ) {
         Long teacherId = teacherAppService.extractTeacherId(authorizationHeader);
-        return adminService.updateStudent(teacherId, targetStudentId, request);
+        return adminService.updateStudent(teacherId, year, targetStudentId, request);
     }
 }

@@ -7,12 +7,13 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface StudentRepository extends JpaRepository<Student, Long> {
 
-    List<Student> findByActiveTrueOrderBySchoolGradeDescStudentNameAsc();
-    List<Student> findAllByOrderBySchoolGradeDescStudentNameAscIdAsc();
-    List<Student> findByActiveTrueOrderBySchoolGradeDescStudentNameAscIdAsc();
+    List<Student> findAllByOrderByStudentNameAscIdAsc();
+    List<Student> findByActiveTrueOrderByStudentNameAscIdAsc();
+    Optional<Student> findFirstByStudentNameAndBirthDate(String studentName, String birthDate);
 
     @Query("""
         select s
@@ -22,7 +23,7 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
                 :keyword is null
                 or lower(s.studentName) like lower(concat('%', :keyword, '%'))
           )
-        order by s.schoolGrade desc, s.studentName asc, s.id asc
+        order by s.studentName asc, s.id asc
     """)
     Page<Student> search(@Param("activeOnly") boolean activeOnly, @Param("keyword") String keyword, Pageable pageable);
 }

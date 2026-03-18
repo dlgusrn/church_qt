@@ -387,6 +387,37 @@ class AdminControllerIntegrationTest {
     }
 
     @Test
+    @DisplayName("교사를 같은 연도 다른 반에 중복 배정하면 400 에러를 반환한다")
+    void assignTeacher_duplicateInSameYear_returnsBadRequest() throws Exception {
+        saveTeacher("admin_teacher_dup_ctrl", "pass1234", TeacherRole.ADMIN, true);
+        String adminToken = loginAndGetAccessToken("admin_teacher_dup_ctrl", "pass1234");
+
+        Year year = saveYear(nextYearValue(), true, true, true);
+        YearClass classA = saveYearClass(year, "기쁨반", 1, true);
+        YearClass classB = saveYearClass(year, "화평반", 2, true);
+        Teacher teacher = saveTeacher("teacher_dup_ctrl", "pass1234", TeacherRole.TEACHER, true);
+
+        String body = "{\"teacherIds\":[" + teacher.getId() + "]}";
+        HttpResponse<String> first = request(
+                "POST",
+                "/api/admin/year-classes/" + classA.getId() + "/teachers",
+                body,
+                adminToken
+        );
+
+        HttpResponse<String> second = request(
+                "POST",
+                "/api/admin/year-classes/" + classB.getId() + "/teachers",
+                body,
+                adminToken
+        );
+
+        assertEquals(200, first.statusCode());
+        assertEquals(400, second.statusCode());
+        assertTrue(second.body() != null && second.body().contains("이미 이 연도에 다른 반"));
+    }
+
+    @Test
     @DisplayName("교사 풀 조회 API는 limit/offset 기준 서버사이드 페이징 응답을 반환한다")
     void getTeachers_pagingResponse() throws Exception {
         saveTeacher("admin_page", "pass1234", TeacherRole.ADMIN, true);
@@ -614,7 +645,6 @@ class AdminControllerIntegrationTest {
     private Student saveStudent(String name, Integer grade, boolean active) {
         return studentRepository.save(Student.builder()
                 .studentName(name)
-                .schoolGrade(grade)
                 .contactNumber("010-1111-1111")
                 .active(active)
                 .build());

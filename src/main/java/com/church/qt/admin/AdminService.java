@@ -14,6 +14,10 @@ import com.church.qt.domain.yearclass.YearClassStudent;
 import com.church.qt.domain.yearclass.YearClassStudentRepository;
 import com.church.qt.domain.yearclass.YearClassTeacher;
 import com.church.qt.domain.yearclass.YearClassTeacherRepository;
+import com.church.qt.domain.yearstudent.YearStudent;
+import com.church.qt.domain.yearstudent.YearStudentRepository;
+import com.church.qt.domain.yearteacher.YearTeacher;
+import com.church.qt.domain.yearteacher.YearTeacherRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -33,6 +37,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -52,6 +57,8 @@ public class AdminService {
     private final YearClassRepository yearClassRepository;
     private final YearClassTeacherRepository yearClassTeacherRepository;
     private final YearClassStudentRepository yearClassStudentRepository;
+    private final YearTeacherRepository yearTeacherRepository;
+    private final YearStudentRepository yearStudentRepository;
     private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
     private final PasswordEncoder passwordEncoder;
     private final DevotionCheckRepository devotionCheckRepository;
@@ -99,11 +106,19 @@ public class AdminService {
         int validatedPoolLimit = (poolLimit == null || poolLimit < 1) ? 20 : Math.min(poolLimit, 200);
         int validatedAuditLimit = (auditLimit == null || auditLimit < 1) ? 100 : Math.min(auditLimit, 5000);
         int validatedAuditOffset = (auditOffset == null || auditOffset < 0) ? 0 : auditOffset;
-        AdminTeacherListResponse teachers = effectiveIncludePools
-                ? getTeachers(teacherId, effectivePoolActiveOnly, poolKeyword, poolLimit, 0)
+        Integer resolvedYearValue = yearValue;
+        if (resolvedYearValue == null) {
+            resolvedYearValue = yearRepository.findByActiveTrueOrderByYearValueDesc()
+                    .stream()
+                    .findFirst()
+                    .map(Year::getYearValue)
+                    .orElse(null);
+        }
+        AdminTeacherListResponse teachers = effectiveIncludePools && resolvedYearValue != null
+                ? getTeachers(teacherId, resolvedYearValue, effectivePoolActiveOnly, poolKeyword, poolLimit, 0)
                 : new AdminTeacherListResponse(0L, validatedPoolLimit, 0, List.of());
-        AdminStudentListResponse students = effectiveIncludePools
-                ? getStudents(teacherId, effectivePoolActiveOnly, poolKeyword, poolLimit, 0)
+        AdminStudentListResponse students = effectiveIncludePools && resolvedYearValue != null
+                ? getStudents(teacherId, resolvedYearValue, effectivePoolActiveOnly, poolKeyword, poolLimit, 0)
                 : new AdminStudentListResponse(0L, validatedPoolLimit, 0, List.of());
         AdminAuditLogListResponse auditLogs;
         if (!effectiveIncludeAuditLogs) {
@@ -275,11 +290,21 @@ public class AdminService {
 
         Set<Long> uniqueTeacherIds = new LinkedHashSet<>(request.teacherIds());
         Map<Long, Teacher> teacherMap = loadTeacherMap(uniqueTeacherIds);
+        validateYearTeacherMembership(yearClass.getYear().getId(), uniqueTeacherIds);
 
         Set<Long> existingTeacherIds = new LinkedHashSet<>();
         if (!uniqueTeacherIds.isEmpty()) {
             yearClassTeacherRepository.findByYearClassIdAndTeacherIdIn(yearClassId, new ArrayList<>(uniqueTeacherIds))
                     .forEach(item -> existingTeacherIds.add(item.getTeacher().getId()));
+        }
+
+        Map<Long, YearClassTeacher> existingByTeacherIdInYear = new LinkedHashMap<>();
+        if (!uniqueTeacherIds.isEmpty()) {
+            yearClassTeacherRepository.findByYearIdAndTeacherIdIn(
+                            yearClass.getYear().getId(),
+                            new ArrayList<>(uniqueTeacherIds)
+                    )
+                    .forEach(item -> existingByTeacherIdInYear.put(item.getTeacher().getId(), item));
         }
 
         List<YearClassTeacher> toSave = new ArrayList<>();
@@ -292,9 +317,15 @@ public class AdminService {
                 continue;
             }
 
+            YearClassTeacher existingInYear = existingByTeacherIdInYear.get(teacherId);
+            if (existingInYear != null && !existingInYear.getYearClass().getId().equals(yearClassId)) {
+                throw new IllegalArgumentException("해당 교사는 이미 이 연도에 다른 반에 배정되어 있습니다. teacherId=" + teacherId);
+            }
+
             toSave.add(YearClassTeacher.builder()
                     .yearClass(yearClass)
                     .teacher(teacherMap.get(teacherId))
+                    .assignmentRole("ASSISTANT")
                     .build());
             assignedTeacherIds.add(teacherId);
         }
@@ -332,6 +363,7 @@ public class AdminService {
 
         Set<Long> uniqueStudentIds = new LinkedHashSet<>(request.studentIds());
         Map<Long, Student> studentMap = loadStudentMap(uniqueStudentIds);
+        validateYearStudentMembership(yearClass.getYear().getId(), uniqueStudentIds);
 
         Map<Long, YearClassStudent> existingByStudentId = new LinkedHashMap<>();
         if (!uniqueStudentIds.isEmpty()) {
@@ -429,6 +461,39 @@ public class AdminService {
                 removedTeacherIds,
                 skippedTeacherIds
         );
+    }
+
+    @Transactional
+    public YearClassTeacherRoleUpdateResponse updateTeacherAssignmentRole(
+            Long adminTeacherId,
+            Long yearClassId,
+            Long targetTeacherId,
+            UpdateYearClassTeacherRoleRequest request
+    ) {
+        validateAdmin(adminTeacherId);
+
+        YearClass yearClass = yearClassRepository.findById(yearClassId)
+                .orElseThrow(() -> new IllegalArgumentException("반이 존재하지 않습니다."));
+        YearClassTeacher yearClassTeacher = yearClassTeacherRepository.findByYearClassIdAndTeacherId(yearClassId, targetTeacherId)
+                .orElseThrow(() -> new IllegalArgumentException("해당 교사는 이 반에 배정되어 있지 않습니다."));
+
+        String assignmentRole = normalizeAssignmentRole(request.assignmentRole());
+        if ("HOMEROOM".equals(assignmentRole)) {
+            boolean hasAnotherHomeroom = yearClassTeacherRepository.findByYearClassId(yearClassId).stream()
+                    .anyMatch(item -> !item.getTeacher().getId().equals(targetTeacherId)
+                            && "HOMEROOM".equals(normalizeAssignmentRole(item.getAssignmentRole())));
+            if (hasAnotherHomeroom) {
+                throw new IllegalArgumentException("한 반에는 담임을 1명만 지정할 수 있습니다.");
+            }
+        }
+
+        yearClassTeacher.updateAssignmentRole(assignmentRole);
+        recordAuditLog(
+                adminTeacherId,
+                "UPDATE_TEACHER_ASSIGNMENT_ROLE",
+                "yearClassId=" + yearClass.getId() + ", teacherId=" + targetTeacherId + ", assignmentRole=" + assignmentRole
+        );
+        return new YearClassTeacherRoleUpdateResponse(yearClass.getId(), targetTeacherId, assignmentRole);
     }
 
     @Transactional
@@ -671,19 +736,50 @@ public class AdminService {
     @Transactional(readOnly = true)
     public AdminTeacherListResponse getTeachers(
             Long adminTeacherId,
+            Integer yearValue,
             Boolean activeOnly,
             String keyword,
             Integer limit,
             Integer offset
     ) {
         validateAdmin(adminTeacherId);
+        Year year = resolveManagementYear(yearValue);
 
         int validatedLimit = (limit == null || limit < 1) ? 20 : Math.min(limit, 200);
         int validatedOffset = (offset == null || offset < 0) ? 0 : offset;
         int pageIndex = validatedOffset / validatedLimit;
 
         String normalizedKeyword = hasText(keyword) ? keyword.trim() : null;
-        Page<Teacher> page = teacherRepository.search(
+        if (yearTeacherRepository.findAllByYearId(year.getId(), false).isEmpty()) {
+            Page<Teacher> fallbackPage = teacherRepository.search(
+                    Boolean.TRUE.equals(activeOnly),
+                    normalizedKeyword,
+                    PageRequest.of(pageIndex, validatedLimit)
+            );
+            List<AdminTeacherResponse> fallbackItems = fallbackPage.getContent().stream()
+                    .map(teacher -> new AdminTeacherResponse(
+                            null,
+                            teacher.getId(),
+                            year.getYearValue(),
+                            teacher.getLoginId(),
+                            teacher.getTeacherName(),
+                            teacher.getContactNumber(),
+                            teacher.getBirthDate(),
+                            teacher.getEffectiveRole().name(),
+                            teacher.getActive(),
+                            teacher.getCreatedAt(),
+                            teacher.getUpdatedAt()
+                    ))
+                    .toList();
+            return new AdminTeacherListResponse(
+                    fallbackPage.getTotalElements(),
+                    validatedLimit,
+                    validatedOffset,
+                    fallbackItems
+            );
+        }
+        Page<YearTeacher> page = yearTeacherRepository.search(
+                year.getYearValue(),
                 Boolean.TRUE.equals(activeOnly),
                 normalizedKeyword,
                 PageRequest.of(pageIndex, validatedLimit)
@@ -702,50 +798,79 @@ public class AdminService {
     }
 
     @Transactional
-    public AdminTeacherResponse createTeacher(Long adminTeacherId, CreateTeacherRequest request) {
+    public AdminTeacherResponse createTeacher(Long adminTeacherId, Integer yearValue, CreateTeacherRequest request) {
         validateAdmin(adminTeacherId);
+        Year year = resolveManagementYear(yearValue);
 
         String loginId = requireText(request.loginId(), "loginId");
-        if (teacherRepository.findByLoginId(loginId).isPresent()) {
-            throw new IllegalArgumentException("이미 존재하는 로그인 ID입니다.");
-        }
-
-        String password = requireText(request.password(), "password");
         String teacherName = requireText(request.teacherName(), "teacherName");
         TeacherRole role = parseTeacherRole(request.role());
+        Teacher savedTeacher;
 
-        Teacher teacher = Teacher.builder()
-                .loginId(loginId)
-                .passwordHash(passwordEncoder.encode(password))
-                .teacherName(teacherName)
-                .contactNumber(normalizeContactNumber(request.contactNumber()))
-                .birthDate(normalizeBirthDate(request.birthDate()))
-                .role(role)
+        Teacher teacher = teacherRepository.findByLoginId(loginId).orElse(null);
+        if (teacher == null) {
+            String password = requireText(request.password(), "password");
+            teacher = Teacher.builder()
+                    .loginId(loginId)
+                    .passwordHash(passwordEncoder.encode(password))
+                    .teacherName(teacherName)
+                    .contactNumber(normalizeContactNumber(request.contactNumber()))
+                    .birthDate(normalizeBirthDate(request.birthDate()))
+                    .role(role)
+                    .active(true)
+                    .build();
+            savedTeacher = teacherRepository.save(teacher);
+        } else {
+            if (yearTeacherRepository.existsByYearIdAndTeacherId(year.getId(), teacher.getId())) {
+                throw new IllegalArgumentException("이미 해당 연도에 등록된 교사입니다.");
+            }
+            teacher.updateInfo(
+                    teacherName,
+                    normalizeContactNumber(request.contactNumber()),
+                    normalizeBirthDate(request.birthDate()),
+                    role,
+                    teacher.getActive()
+            );
+            savedTeacher = teacher;
+        }
+
+        YearTeacher yearTeacher = yearTeacherRepository.save(YearTeacher.builder()
+                .year(year)
+                .teacher(savedTeacher)
+                .sortOrder(0)
                 .active(request.active() == null || request.active())
-                .build();
-        Teacher savedTeacher = teacherRepository.save(teacher);
+                .build());
         recordAuditLog(
                 adminTeacherId,
                 "CREATE_TEACHER",
-                "teacherId=" + savedTeacher.getId() + ", loginId=" + savedTeacher.getLoginId() + ", role=" + savedTeacher.getEffectiveRole().name()
+                "yearValue=" + yearValue + ", teacherId=" + savedTeacher.getId() + ", loginId=" + savedTeacher.getLoginId() + ", role=" + savedTeacher.getEffectiveRole().name()
         );
-        return AdminTeacherResponse.from(savedTeacher);
+        return AdminTeacherResponse.from(yearTeacher);
     }
 
     @Transactional
-    public AdminTeacherResponse updateTeacher(Long adminTeacherId, Long targetTeacherId, UpdateTeacherRequest request) {
+    public AdminTeacherResponse createTeacher(Long adminTeacherId, CreateTeacherRequest request) {
+        return createTeacher(adminTeacherId, null, request);
+    }
+
+    @Transactional
+    public AdminTeacherResponse updateTeacher(Long adminTeacherId, Integer yearValue, Long targetTeacherId, UpdateTeacherRequest request) {
         validateAdmin(adminTeacherId);
+        Year year = resolveManagementYear(yearValue);
 
         Teacher teacher = teacherRepository.findById(targetTeacherId)
                 .orElseThrow(() -> new IllegalArgumentException("교사가 존재하지 않습니다."));
+        YearTeacher yearTeacher = yearTeacherRepository.findByYearIdAndTeacherId(year.getId(), targetTeacherId)
+                .orElseThrow(() -> new IllegalArgumentException("해당 연도에 등록되지 않은 교사입니다."));
 
         teacher.updateInfo(
                 requireText(request.teacherName(), "teacherName"),
                 normalizeContactNumber(request.contactNumber()),
                 normalizeBirthDate(request.birthDate()),
                 parseTeacherRole(request.role()),
-                request.active() == null || request.active()
+                teacher.getActive()
         );
+        yearTeacher.update(yearTeacher.getSortOrder(), request.active() == null || request.active());
 
         if (hasText(request.password())) {
             teacher.changePassword(passwordEncoder.encode(request.password().trim()));
@@ -753,28 +878,58 @@ public class AdminService {
         recordAuditLog(
                 adminTeacherId,
                 "UPDATE_TEACHER",
-                "teacherId=" + teacher.getId() + ", loginId=" + teacher.getLoginId() + ", role=" + teacher.getEffectiveRole().name() + ", active=" + teacher.getActive()
+                "yearValue=" + yearValue + ", teacherId=" + teacher.getId() + ", loginId=" + teacher.getLoginId() + ", role=" + teacher.getEffectiveRole().name() + ", active=" + yearTeacher.getActive()
         );
 
-        return AdminTeacherResponse.from(teacher);
+        return AdminTeacherResponse.from(yearTeacher);
     }
 
     @Transactional(readOnly = true)
     public AdminStudentListResponse getStudents(
             Long adminTeacherId,
+            Integer yearValue,
             Boolean activeOnly,
             String keyword,
             Integer limit,
             Integer offset
     ) {
         validateAdmin(adminTeacherId);
+        Year year = resolveManagementYear(yearValue);
 
         int validatedLimit = (limit == null || limit < 1) ? 20 : Math.min(limit, 200);
         int validatedOffset = (offset == null || offset < 0) ? 0 : offset;
         int pageIndex = validatedOffset / validatedLimit;
 
         String normalizedKeyword = hasText(keyword) ? keyword.trim() : null;
-        Page<Student> page = studentRepository.search(
+        if (yearStudentRepository.findAllByYearId(year.getId(), false).isEmpty()) {
+            Page<Student> fallbackPage = studentRepository.search(
+                    Boolean.TRUE.equals(activeOnly),
+                    normalizedKeyword,
+                    PageRequest.of(pageIndex, validatedLimit)
+            );
+            List<AdminStudentResponse> fallbackItems = fallbackPage.getContent().stream()
+                    .map(student -> new AdminStudentResponse(
+                            null,
+                            student.getId(),
+                            student.getStudentName(),
+                            year.getYearValue(),
+                            null,
+                            student.getContactNumber(),
+                            student.getBirthDate(),
+                            student.getActive(),
+                            student.getCreatedAt(),
+                            student.getUpdatedAt()
+                    ))
+                    .toList();
+            return new AdminStudentListResponse(
+                    fallbackPage.getTotalElements(),
+                    validatedLimit,
+                    validatedOffset,
+                    fallbackItems
+            );
+        }
+        Page<YearStudent> page = yearStudentRepository.search(
+                year.getYearValue(),
                 Boolean.TRUE.equals(activeOnly),
                 normalizedKeyword,
                 PageRequest.of(pageIndex, validatedLimit)
@@ -793,46 +948,77 @@ public class AdminService {
     }
 
     @Transactional
-    public AdminStudentResponse createStudent(Long adminTeacherId, CreateStudentRequest request) {
+    public AdminStudentResponse createStudent(Long adminTeacherId, Integer yearValue, CreateStudentRequest request) {
         validateAdmin(adminTeacherId);
+        Year year = resolveManagementYear(yearValue);
 
-        Student student = Student.builder()
-                .studentName(requireText(request.studentName(), "studentName"))
-                .schoolGrade(request.schoolGrade())
-                .contactNumber(normalizeContactNumber(request.contactNumber()))
-                .birthDate(normalizeBirthDate(request.birthDate()))
+        String studentName = requireText(request.studentName(), "studentName");
+        String birthDate = normalizeBirthDate(request.birthDate());
+        Student student = birthDate == null
+                ? null
+                : studentRepository.findFirstByStudentNameAndBirthDate(studentName, birthDate).orElse(null);
+        if (student == null) {
+            student = Student.builder()
+                    .studentName(studentName)
+                    .contactNumber(normalizeContactNumber(request.contactNumber()))
+                    .birthDate(birthDate)
+                    .active(true)
+                    .build();
+            student = studentRepository.save(student);
+        } else {
+            if (yearStudentRepository.existsByYearIdAndStudentId(year.getId(), student.getId())) {
+                throw new IllegalArgumentException("이미 해당 연도에 등록된 학생입니다.");
+            }
+            student.updateInfo(
+                    studentName,
+                    normalizeContactNumber(request.contactNumber()),
+                    birthDate,
+                    student.getActive()
+            );
+        }
+        YearStudent savedYearStudent = yearStudentRepository.save(YearStudent.builder()
+                .year(year)
+                .student(student)
+                .schoolGrade(normalizeSchoolGrade(request.schoolGrade()))
+                .sortOrder(0)
                 .active(request.active() == null || request.active())
-                .build();
-        Student savedStudent = studentRepository.save(student);
+                .build());
         recordAuditLog(
                 adminTeacherId,
                 "CREATE_STUDENT",
-                "studentId=" + savedStudent.getId() + ", studentName=" + savedStudent.getStudentName() + ", schoolGrade=" + savedStudent.getSchoolGrade()
+                "yearValue=" + yearValue + ", studentId=" + student.getId() + ", studentName=" + student.getStudentName() + ", schoolGrade=" + savedYearStudent.getSchoolGrade()
         );
-        return AdminStudentResponse.from(savedStudent);
+        return AdminStudentResponse.from(savedYearStudent);
     }
 
     @Transactional
-    public AdminStudentResponse updateStudent(Long adminTeacherId, Long targetStudentId, UpdateStudentRequest request) {
+    public AdminStudentResponse updateStudent(Long adminTeacherId, Integer yearValue, Long targetStudentId, UpdateStudentRequest request) {
         validateAdmin(adminTeacherId);
+        Year year = resolveManagementYear(yearValue);
 
         Student student = studentRepository.findById(targetStudentId)
                 .orElseThrow(() -> new IllegalArgumentException("학생이 존재하지 않습니다."));
+        YearStudent yearStudent = yearStudentRepository.findByYearIdAndStudentId(year.getId(), targetStudentId)
+                .orElseThrow(() -> new IllegalArgumentException("해당 연도에 등록되지 않은 학생입니다."));
 
         student.updateInfo(
                 requireText(request.studentName(), "studentName"),
-                request.schoolGrade(),
                 normalizeContactNumber(request.contactNumber()),
                 normalizeBirthDate(request.birthDate()),
+                student.getActive()
+        );
+        yearStudent.update(
+                normalizeSchoolGrade(request.schoolGrade()),
+                yearStudent.getSortOrder(),
                 request.active() == null || request.active()
         );
         recordAuditLog(
                 adminTeacherId,
                 "UPDATE_STUDENT",
-                "studentId=" + student.getId() + ", studentName=" + student.getStudentName() + ", schoolGrade=" + student.getSchoolGrade() + ", active=" + student.getActive()
+                "yearValue=" + yearValue + ", studentId=" + student.getId() + ", studentName=" + student.getStudentName() + ", schoolGrade=" + yearStudent.getSchoolGrade() + ", active=" + yearStudent.getActive()
         );
 
-        return AdminStudentResponse.from(student);
+        return AdminStudentResponse.from(yearStudent);
     }
 
     @Transactional(readOnly = true)
@@ -909,6 +1095,10 @@ public class AdminService {
         List<Long> yearClassIds = yearClasses.stream()
                 .map(YearClass::getId)
                 .toList();
+        List<Long> yearIds = yearClasses.stream()
+                .map(yearClass -> yearClass.getYear().getId())
+                .distinct()
+                .toList();
 
         Map<Long, List<AdminYearClassTeacherResponse>> teacherMapByYearClassId = new LinkedHashMap<>();
         yearClassTeacherRepository.findByYearClassIdInOrderByYearClassIdAscTeacherTeacherNameAsc(yearClassIds)
@@ -916,10 +1106,30 @@ public class AdminService {
                         .computeIfAbsent(item.getYearClass().getId(), key -> new ArrayList<>())
                         .add(AdminYearClassTeacherResponse.from(item)));
 
+        List<YearClassStudent> yearClassStudents = yearClassStudentRepository.findByYearClassIdInOrderByYearClassIdAscStudentStudentNameAsc(yearClassIds);
+        List<Long> studentIds = yearClassStudents.stream()
+                .map(item -> item.getStudent().getId())
+                .distinct()
+                .toList();
+        Map<String, YearStudent> yearStudentMap = studentIds.isEmpty()
+                ? Map.of()
+                : yearStudentRepository.findByYearIdInAndStudentIdIn(yearIds, studentIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        item -> item.getYear().getId() + ":" + item.getStudent().getId(),
+                        Function.identity(),
+                        (left, right) -> left,
+                        LinkedHashMap::new
+                ));
+
         Map<Long, List<AdminYearClassStudentResponse>> studentMapByYearClassId = new LinkedHashMap<>();
-        yearClassStudentRepository.findByYearClassIdInOrderByYearClassIdAscStudentSchoolGradeDescStudentStudentNameAsc(yearClassIds)
-                .forEach(item -> {
+        yearClassStudents.forEach(item -> {
+                    YearStudent yearStudent = yearStudentMap.get(item.getYear().getId() + ":" + item.getStudent().getId());
                     long qtCount = devotionCheckRepository.countByYearIdAndStudentIdAndQtCheckedTrue(
+                            item.getYearClass().getYear().getId(),
+                            item.getStudent().getId()
+                    );
+                    long attitudeCount = devotionCheckRepository.countByYearIdAndStudentIdAndAttitudeCheckedTrue(
                             item.getYearClass().getYear().getId(),
                             item.getStudent().getId()
                     );
@@ -933,12 +1143,13 @@ public class AdminService {
                             .add(new AdminYearClassStudentResponse(
                                     item.getStudent().getId(),
                                     item.getStudent().getStudentName(),
-                                    item.getStudent().getSchoolGrade(),
+                                    yearStudent == null ? null : yearStudent.getSchoolGrade(),
                                     item.getStudent().getContactNumber(),
-                                    item.getStudent().getActive(),
+                                    yearStudent != null ? Boolean.TRUE.equals(yearStudent.getActive()) : item.getStudent().getActive(),
                                     qtCount,
+                                    attitudeCount,
                                     noteCount,
-                                    qtCount + noteCount
+                                    qtCount + attitudeCount + noteCount
                             ));
                 });
 
@@ -1151,7 +1362,7 @@ public class AdminService {
             throw new IllegalArgumentException("비활성화된 교사입니다.");
         }
 
-        if (teacher.getRole() != TeacherRole.ADMIN) {
+        if (teacher.getEffectiveRole() != TeacherRole.ADMIN) {
             throw new IllegalArgumentException("관리자 권한이 없습니다.");
         }
         return teacher;
@@ -1172,6 +1383,10 @@ public class AdminService {
     }
 
     private String normalizeOptionalText(String value) {
+        return hasText(value) ? value.trim() : null;
+    }
+
+    private String normalizeSchoolGrade(String value) {
         return hasText(value) ? value.trim() : null;
     }
 
@@ -1202,6 +1417,61 @@ public class AdminService {
             return TeacherRole.valueOf(rawRole.trim().toUpperCase());
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("유효하지 않은 role입니다.");
+        }
+    }
+
+    private String normalizeAssignmentRole(String rawRole) {
+        if (!hasText(rawRole)) {
+            return "ASSISTANT";
+        }
+        String normalized = rawRole.trim().toUpperCase();
+        if (!normalized.equals("HOMEROOM") && !normalized.equals("ASSISTANT")) {
+            throw new IllegalArgumentException("유효하지 않은 assignmentRole입니다.");
+        }
+        return normalized;
+    }
+
+    private Year getYearByValue(Integer yearValue) {
+        if (yearValue == null) {
+            throw new IllegalArgumentException("연도가 비어 있습니다.");
+        }
+        return yearRepository.findByYearValue(yearValue)
+                .orElseThrow(() -> new IllegalArgumentException("연도가 존재하지 않습니다."));
+    }
+
+    private Year resolveManagementYear(Integer yearValue) {
+        if (yearValue != null) {
+            return getYearByValue(yearValue);
+        }
+        return yearRepository.findByActiveTrueOrderByYearValueDesc()
+                .stream()
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("활성 연도가 없습니다."));
+    }
+
+    private void validateYearTeacherMembership(Long yearId, Set<Long> teacherIds) {
+        if (yearTeacherRepository.findAllByYearId(yearId, false).isEmpty()) {
+            return;
+        }
+        for (Long teacherId : teacherIds) {
+            YearTeacher yearTeacher = yearTeacherRepository.findByYearIdAndTeacherId(yearId, teacherId)
+                    .orElseThrow(() -> new IllegalArgumentException("해당 교사는 이 연도 운영 명단에 없습니다. teacherId=" + teacherId));
+            if (!Boolean.TRUE.equals(yearTeacher.getActive())) {
+                throw new IllegalArgumentException("비활성 교사는 배정할 수 없습니다. teacherId=" + teacherId);
+            }
+        }
+    }
+
+    private void validateYearStudentMembership(Long yearId, Set<Long> studentIds) {
+        if (yearStudentRepository.findAllByYearId(yearId, false).isEmpty()) {
+            return;
+        }
+        for (Long studentId : studentIds) {
+            YearStudent yearStudent = yearStudentRepository.findByYearIdAndStudentId(yearId, studentId)
+                    .orElseThrow(() -> new IllegalArgumentException("해당 학생은 이 연도 운영 명단에 없습니다. studentId=" + studentId));
+            if (!Boolean.TRUE.equals(yearStudent.getActive())) {
+                throw new IllegalArgumentException("비활성 학생은 배정할 수 없습니다. studentId=" + studentId);
+            }
         }
     }
 

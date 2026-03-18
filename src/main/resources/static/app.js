@@ -6,21 +6,26 @@
   const appToast = document.getElementById("appToast");
   const appLoading = document.getElementById("appLoading");
   const appHeader = document.querySelector(".app-header");
+  const appKicker = document.querySelector(".kicker");
   const STUDENT_BANNER_IMAGE_URL = "";
 
   const TEACHER_TOKEN_KEY = "qt_teacher_access_token";
   const DEFAULT_STUDENT_YEAR = new Date().getFullYear();
   let cachedStudentCurrentYear = DEFAULT_STUDENT_YEAR;
   let pendingRequestCount = 0;
-  const AUTO_ADVANCE_KEY = "qt_teacher_auto_advance_next_day";
   const TEACHER_LOGIN_ID_KEY = "qt_teacher_last_login_id";
   const TEACHER_STUDENT_KEYWORD_KEY = "qt_teacher_students_keyword";
   const TEACHER_STUDENT_SORT_KEY = "qt_teacher_students_sort";
 
   const weekdayNames = ["일", "월", "화", "수", "목", "금", "토"];
+  let lastDesktopMarkerLayout = isDesktopMarkerLayout();
 
   function setAppMode(mode) {
     document.body.dataset.appMode = mode;
+  }
+
+  function isDesktopMarkerLayout() {
+    return !!(window.matchMedia && window.matchMedia("(min-width: 721px)").matches);
   }
 
   function showError(message) {
@@ -34,7 +39,11 @@
   }
 
   function setLoading(loading) {
-    if (document.body.dataset.appMode === "student") {
+    const path = window.location.pathname;
+    if (
+      document.body.dataset.appMode === "student" ||
+      (path.startsWith("/app/teacher/students/") && path.endsWith("/calendar"))
+    ) {
       appLoading.classList.add("hidden");
       return;
     }
@@ -107,6 +116,11 @@
   function setHeaderVisible(visible) {
     if (!appHeader) return;
     appHeader.classList.toggle("hidden", !visible);
+  }
+
+  function setKickerVisible(visible) {
+    if (!appKicker) return;
+    appKicker.classList.toggle("hidden", !visible);
   }
 
   function navigate(path) {
@@ -248,15 +262,19 @@
 
     days.forEach(day => {
       const dayNum = Number(day.date.split("-")[2]);
-      const icons = [];
-      if (day.qtChecked) icons.push("🍇");
-      if (day.noteChecked) icons.push("🫒");
+      const markers = [];
+      if (day.qtChecked) markers.push('<span class="day-marker qt" aria-label="QT">🍇</span>');
+      if (day.noteChecked) markers.push('<span class="day-marker note" aria-label="노트">🍐</span>');
+      if (day.attitudeChecked) markers.push('<span class="day-marker attitude" aria-label="태도">🫒</span>');
       const todayClass = day.isToday ? " today" : "";
       const selectedClass = selectedDate && selectedDate === day.date ? " selected" : "";
       cells.push(`
         <button class="day-cell selectable${todayClass}${selectedClass}" data-date="${day.date}">
-          <div class="day-num">${dayNum}</div>
-          <div class="day-icons">${icons.join(" ")}</div>
+          <div class="day-num-row">
+            <div class="day-num">${dayNum}</div>
+            ${day.isBirthday ? '<div class="day-birthday" aria-label="생일 있음">🎂</div>' : ""}
+          </div>
+          ${renderDayMarkers(markers)}
         </button>
       `);
     });
@@ -269,6 +287,75 @@
         <div class="day-grid">${cells.join("")}</div>
       </div>
     `;
+  }
+
+  function renderDayMarkers(markers) {
+    if (!Array.isArray(markers) || markers.length === 0) {
+      return '<div class="day-icons"></div>';
+    }
+
+    const isDesktop = isDesktopMarkerLayout();
+
+    if (markers.length === 1) {
+      return `
+        <div class="day-icons">
+          <div class="day-icons-row single">${markers[0]}</div>
+        </div>
+      `;
+    }
+
+    if (markers.length === 2) {
+      return `
+        <div class="day-icons">
+          <div class="day-icons-row bottom">${markers.join("")}</div>
+        </div>
+      `;
+    }
+
+    if (markers.length === 3 && isDesktop) {
+      return `
+        <div class="day-icons">
+          <div class="day-icons-row triple">${markers.join("")}</div>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="day-icons">
+        <div class="day-icons-row top">${markers[0]}</div>
+        <div class="day-icons-row bottom">${markers.slice(1, 3).join("")}</div>
+      </div>
+    `;
+  }
+
+  function renderBirthdayList(birthdays) {
+    if (!Array.isArray(birthdays) || birthdays.length === 0) {
+      return "";
+    }
+
+    return `
+      <section class="birthday-panel">
+        <div class="birthday-title">이달의 생일자</div>
+        <div class="birthday-list">
+          ${birthdays.map(item => `
+            <div class="birthday-item">
+              <div class="birthday-item-head">
+                <span class="birthday-date">${formatBirthdayDate(item.date)}</span>
+                <span class="birthday-type ${item.type === "teacher" ? "teacher" : "student"}">${item.type === "teacher" ? "교사" : "학생"}</span>
+              </div>
+              <div class="birthday-name">🎂 ${escapeHtml(item.name || "")}</div>
+            </div>
+          `).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  function formatBirthdayDate(dateText) {
+    if (!dateText || typeof dateText !== "string") return "-";
+    const parts = dateText.split("-").map(Number);
+    if (parts.length !== 3 || parts.some(Number.isNaN)) return dateText;
+    return `${parts[1]}월 ${parts[2]}일`;
   }
 
   function focusTodayCell(containerSelector) {
@@ -287,6 +374,7 @@
     setAppMode("student");
     clearError();
     setHeaderVisible(false);
+    setKickerVisible(true);
     setTitle("");
     btnBack.classList.add("hidden");
 
@@ -347,6 +435,7 @@
     setAppMode("student");
     clearError();
     setHeaderVisible(false);
+    setKickerVisible(true);
     setTitle("");
     btnBack.classList.add("hidden");
 
@@ -375,9 +464,10 @@
           <div class="item-title">${escapeHtml(formatStudentHeading(body.displayName, body.studentName, body.schoolGrade))}</div>
         </div>
         <div class="summary">
-          <div class="box"><div class="label">QT 개수</div><div class="value">${body.summary.qtCount}</div></div>
-          <div class="box"><div class="label">노트 개수</div><div class="value">${body.summary.noteCount}</div></div>
-          <div class="box"><div class="label">총 개수</div><div class="value">${body.summary.totalCount}</div></div>
+          <div class="box"><div class="label">🍇 QT 개수</div><div class="value">${body.summary.qtCount}</div></div>
+          <div class="box"><div class="label">🍐 노트 개수</div><div class="value">${body.summary.noteCount}</div></div>
+          <div class="box"><div class="label">🫒 태도 개수</div><div class="value">${body.summary.attitudeCount}</div></div>
+          <div class="box total-box"><div class="label">총 개수</div><div class="value">${body.summary.totalCount}</div></div>
         </div>
         <div class="calendar-nav">
           <button id="btnPrevMonth" class="ghost">이전달</button>
@@ -386,7 +476,8 @@
           <button id="btnNextMonth" class="ghost">다음달</button>
         </div>
         ${renderCalendarGrid(body.days)}
-        <div class="legend">🍇 QT 완료 · 🫒 노트 완료 · 파란 배경은 오늘</div>
+        <div class="legend">🎂 생일 · 파란 배경은 오늘</div>
+        ${renderBirthdayList(body.birthdays)}
       </section>
     `;
 
@@ -418,6 +509,7 @@
     setAppMode("teacher");
     clearError();
     setHeaderVisible(false);
+    setKickerVisible(true);
     setTitle("");
     btnBack.classList.add("hidden");
 
@@ -482,7 +574,8 @@
     setAppMode("teacher");
     clearError();
     setHeaderVisible(true);
-    setTitle("교사 학생 목록");
+    setKickerVisible(false);
+    setTitle("학생 선택");
     btnBack.classList.add("hidden");
 
     const params = new URLSearchParams(window.location.search);
@@ -561,6 +654,7 @@
           <div class="teacher-stats">
             <span class="badge qt">QT ${item.qtCount}</span>
             <span class="badge note">노트 ${item.noteCount}</span>
+            <span class="badge attitude">태도 ${item.attitudeCount}</span>
             <span class="badge total">총 ${item.totalCount}</span>
           </div>
         </button>
@@ -582,9 +676,13 @@
   async function renderTeacherCalendarScreen(studentId) {
     setAppMode("teacher");
     clearError();
-    setHeaderVisible(true);
-    setTitle("학생 체크");
-    btnBack.classList.remove("hidden");
+    const params = new URLSearchParams(window.location.search);
+    const source = String(params.get("source") || "").trim().toLowerCase();
+    const fromAdmin = source === "admin";
+    setHeaderVisible(false);
+    setKickerVisible(true);
+    setTitle("");
+    btnBack.classList.add("hidden");
 
     let { year, month } = readYearMonthFromQuery();
     let body;
@@ -597,35 +695,23 @@
       year = await ensureStudentCurrentYear();
       month = parseMonth(month, new Date().getMonth() + 1);
       body = await requestWithTeacherAuth(`/api/students/${studentId}/calendar?year=${year}&month=${month}`);
-      history.replaceState({}, "", buildPathWithYearMonth(`/app/teacher/students/${studentId}/calendar`, year, month));
+      history.replaceState({}, "", `${buildPathWithYearMonth(`/app/teacher/students/${studentId}/calendar`, year, month)}${fromAdmin ? "&source=admin" : ""}`);
     }
     let selectedDate = null;
     let selectedQt = false;
+    let selectedAttitude = false;
     let selectedNote = false;
     let baseQt = false;
+    let baseAttitude = false;
     let baseNote = false;
-    const savedAutoAdvance = localStorage.getItem(AUTO_ADVANCE_KEY);
-    let autoAdvanceNextDay = savedAutoAdvance == null ? true : savedAutoAdvance === "true";
-
-    function updateDayMoveButtons() {
-      const prevBtn = document.getElementById("btnPrevDay");
-      const nextBtn = document.getElementById("btnNextDay");
-      if (!prevBtn || !nextBtn) return;
-      if (!selectedDate) {
-        prevBtn.disabled = true;
-        nextBtn.disabled = true;
-        return;
-      }
-      const idx = (body.days || []).findIndex(day => day.date === selectedDate);
-      prevBtn.disabled = idx <= 0;
-      nextBtn.disabled = idx < 0 || idx >= (body.days || []).length - 1;
-    }
+    const autoAdvanceNextDay = true;
 
     function hasUnsavedChanges() {
       if (!selectedDate) return false;
       const currentQt = document.getElementById("toggleQt").checked;
+      const currentAttitude = document.getElementById("toggleAttitude").checked;
       const currentNote = document.getElementById("toggleNote").checked;
-      return currentQt !== baseQt || currentNote !== baseNote;
+      return currentQt !== baseQt || currentAttitude !== baseAttitude || currentNote !== baseNote;
     }
 
     function confirmDiscardIfNeeded() {
@@ -643,13 +729,16 @@
       syncPanelFromDate(body.days[nextIdx].date);
     }
 
-    function adjustSummaryAfterSave(previousQt, previousNote, nextQt, nextNote) {
+    function adjustSummaryAfterSave(previousQt, previousAttitude, previousNote, nextQt, nextAttitude, nextNote) {
       const qtDelta = (nextQt ? 1 : 0) - (previousQt ? 1 : 0);
+      const attitudeDelta = (nextAttitude ? 1 : 0) - (previousAttitude ? 1 : 0);
       const noteDelta = (nextNote ? 1 : 0) - (previousNote ? 1 : 0);
       body.summary.qtCount += qtDelta;
+      body.summary.attitudeCount += attitudeDelta;
       body.summary.noteCount += noteDelta;
-      body.summary.totalCount += qtDelta + noteDelta;
+      body.summary.totalCount += qtDelta + attitudeDelta + noteDelta;
       document.getElementById("summaryQtCount").textContent = String(body.summary.qtCount);
+      document.getElementById("summaryAttitudeCount").textContent = String(body.summary.attitudeCount);
       document.getElementById("summaryNoteCount").textContent = String(body.summary.noteCount);
       document.getElementById("summaryTotalCount").textContent = String(body.summary.totalCount);
     }
@@ -661,15 +750,16 @@
       const target = (body.days || []).find(day => day.date === dateText);
       selectedDate = dateText;
       baseQt = !!(target && target.qtChecked);
+      baseAttitude = !!(target && target.attitudeChecked);
       baseNote = !!(target && target.noteChecked);
       selectedQt = baseQt;
+      selectedAttitude = baseAttitude;
       selectedNote = baseNote;
-      document.getElementById("selectedDateText").textContent = dateText;
       document.getElementById("toggleQt").checked = selectedQt;
+      document.getElementById("toggleAttitude").checked = selectedAttitude;
       document.getElementById("toggleNote").checked = selectedNote;
       document.getElementById("checkPanel").classList.remove("hidden");
       renderCalendarOnly();
-      updateDayMoveButtons();
       updateSaveButtonState();
     }
 
@@ -682,8 +772,9 @@
         return;
       }
       const currentQt = document.getElementById("toggleQt").checked;
+      const currentAttitude = document.getElementById("toggleAttitude").checked;
       const currentNote = document.getElementById("toggleNote").checked;
-      const changed = currentQt !== baseQt || currentNote !== baseNote;
+      const changed = currentQt !== baseQt || currentAttitude !== baseAttitude || currentNote !== baseNote;
       saveButton.disabled = !changed;
       saveButton.textContent = changed ? "저장" : "변경 없음";
     }
@@ -703,44 +794,40 @@
 
     appRoot.innerHTML = `
       <section class="panel">
-        <div class="compact-head">
-          <div class="item-title">${escapeHtml(body.displayName || body.studentName)}</div>
-          <div class="item-sub">${escapeHtml(body.studentName || "")}</div>
+        <div class="compact-head compact-head-row">
+          <button id="btnTeacherCalendarBack" class="icon-btn compact-back-btn" aria-label="뒤로가기">←</button>
+          <div>
+            <div class="item-title">${escapeHtml(body.displayName || body.studentName)}</div>
+          </div>
         </div>
         <div class="summary">
-          <div class="box"><div class="label">QT 개수</div><div id="summaryQtCount" class="value">${body.summary.qtCount}</div></div>
-          <div class="box"><div class="label">노트 개수</div><div id="summaryNoteCount" class="value">${body.summary.noteCount}</div></div>
-          <div class="box"><div class="label">총 개수</div><div id="summaryTotalCount" class="value">${body.summary.totalCount}</div></div>
+          <div class="box"><div class="label">🍇 QT 개수</div><div id="summaryQtCount" class="value">${body.summary.qtCount}</div></div>
+          <div class="box"><div class="label">🍐 노트 개수</div><div id="summaryNoteCount" class="value">${body.summary.noteCount}</div></div>
+          <div class="box"><div class="label">🫒 태도 개수</div><div id="summaryAttitudeCount" class="value">${body.summary.attitudeCount}</div></div>
+          <div class="box total-box"><div class="label">총 개수</div><div id="summaryTotalCount" class="value">${body.summary.totalCount}</div></div>
         </div>
         <div class="calendar-nav">
           <button id="btnPrevMonth" class="ghost">이전달</button>
           <div class="calendar-title">${year}년 ${month}월</div>
-          <button id="btnTodayMonthTeacher" class="ghost">오늘</button>
+          <button id="btnTodayMonthTeacher" class="today-cta">오늘</button>
           <button id="btnNextMonth" class="ghost">다음달</button>
         </div>
         <div id="calendarWrap"></div>
-        <div class="legend">날짜를 선택하면 아래 패널에서 QT/노트를 체크합니다.</div>
+        ${renderBirthdayList(body.birthdays)}
 
         <div id="checkPanel" class="check-panel check-panel-fixed hidden">
-          <div class="check-title">선택 날짜: <span id="selectedDateText">-</span></div>
           <div class="quick-row">
-            <button id="btnPrevDay" class="ghost" type="button">← 이전 날짜</button>
-            <button id="btnNextDay" class="ghost" type="button">다음 날짜 →</button>
-          </div>
-          <div class="switch-row">
-            <label><input id="toggleAutoAdvance" type="checkbox" ${autoAdvanceNextDay ? "checked" : ""} /> 저장 후 다음 날짜로 이동</label>
-          </div>
-          <div class="quick-row">
-            <button id="btnMarkAll" class="ghost" type="button">둘 다 체크</button>
+            <button id="btnMarkAll" class="ghost" type="button">전체 체크</button>
             <button id="btnClearAll" class="ghost" type="button">전체 해제</button>
           </div>
           <div class="switch-row">
-            <label><input id="toggleQt" type="checkbox" /> 🍇 QT 완료</label>
-            <label><input id="toggleNote" type="checkbox" /> 🫒 노트 완료</label>
+            <label><input id="toggleQt" type="checkbox" /> QT 완료</label>
+            <label><input id="toggleNote" type="checkbox" /> 노트 완료</label>
+            <label><input id="toggleAttitude" type="checkbox" /> 태도 완료</label>
           </div>
           <div class="save-row">
             <button id="btnSaveCheck">저장</button>
-            <button id="btnCancelSelect" class="ghost">선택 해제</button>
+            <button id="btnCancelSelect" class="ghost">닫기</button>
           </div>
         </div>
         <div class="check-panel-spacer"></div>
@@ -749,55 +836,57 @@
 
     renderCalendarOnly();
 
+    document.getElementById("btnTeacherCalendarBack").addEventListener("click", () => {
+      if (fromAdmin) {
+        navigate("/app/admin");
+        return;
+      }
+      navigate(`/app/teacher/students?year=${year}`);
+    });
+
     document.getElementById("btnPrevMonth").addEventListener("click", () => {
       if (!confirmDiscardIfNeeded()) return;
-      navigate(buildPathWithYearMonth(`/app/teacher/students/${studentId}/calendar`, prevDate.getFullYear(), prevDate.getMonth() + 1));
+      navigate(`${buildPathWithYearMonth(`/app/teacher/students/${studentId}/calendar`, prevDate.getFullYear(), prevDate.getMonth() + 1)}${fromAdmin ? "&source=admin" : ""}`);
     });
     document.getElementById("btnTodayMonthTeacher").addEventListener("click", () => {
       if (!confirmDiscardIfNeeded()) return;
       const today = new Date();
-      navigate(buildPathWithYearMonth(`/app/teacher/students/${studentId}/calendar`, today.getFullYear(), today.getMonth() + 1));
+      navigate(`${buildPathWithYearMonth(`/app/teacher/students/${studentId}/calendar`, today.getFullYear(), today.getMonth() + 1)}${fromAdmin ? "&source=admin" : ""}`);
     });
     document.getElementById("btnNextMonth").addEventListener("click", () => {
       if (!confirmDiscardIfNeeded()) return;
-      navigate(buildPathWithYearMonth(`/app/teacher/students/${studentId}/calendar`, nextDate.getFullYear(), nextDate.getMonth() + 1));
+      navigate(`${buildPathWithYearMonth(`/app/teacher/students/${studentId}/calendar`, nextDate.getFullYear(), nextDate.getMonth() + 1)}${fromAdmin ? "&source=admin" : ""}`);
     });
 
     document.getElementById("btnCancelSelect").addEventListener("click", () => {
       selectedDate = null;
       document.getElementById("checkPanel").classList.add("hidden");
       renderCalendarOnly();
-      updateDayMoveButtons();
       updateSaveButtonState();
-    });
-
-    document.getElementById("btnPrevDay").addEventListener("click", () => moveSelectedDate(-1));
-    document.getElementById("btnNextDay").addEventListener("click", () => moveSelectedDate(1));
-    document.getElementById("toggleAutoAdvance").addEventListener("change", e => {
-      autoAdvanceNextDay = e.target.checked;
-      localStorage.setItem(AUTO_ADVANCE_KEY, String(autoAdvanceNextDay));
     });
 
     document.getElementById("btnMarkAll").addEventListener("click", () => {
       document.getElementById("toggleQt").checked = true;
+      document.getElementById("toggleAttitude").checked = true;
       document.getElementById("toggleNote").checked = true;
       updateSaveButtonState();
     });
 
     document.getElementById("btnClearAll").addEventListener("click", () => {
       document.getElementById("toggleQt").checked = false;
+      document.getElementById("toggleAttitude").checked = false;
       document.getElementById("toggleNote").checked = false;
       updateSaveButtonState();
     });
 
     document.getElementById("toggleQt").addEventListener("change", updateSaveButtonState);
+    document.getElementById("toggleAttitude").addEventListener("change", updateSaveButtonState);
     document.getElementById("toggleNote").addEventListener("change", updateSaveButtonState);
 
     const todayIso = new Date().toISOString().slice(0, 10);
     if ((body.days || []).some(day => day.date === todayIso)) {
       syncPanelFromDate(todayIso);
     }
-    updateDayMoveButtons();
     updateSaveButtonState();
 
     document.getElementById("btnSaveCheck").addEventListener("click", async () => {
@@ -813,8 +902,10 @@
         saveButton.textContent = "저장 중...";
         const dayTarget = (body.days || []).find(day => day.date === selectedDate);
         const previousQt = !!(dayTarget && dayTarget.qtChecked);
+        const previousAttitude = !!(dayTarget && dayTarget.attitudeChecked);
         const previousNote = !!(dayTarget && dayTarget.noteChecked);
         const qtChecked = document.getElementById("toggleQt").checked;
+        const attitudeChecked = document.getElementById("toggleAttitude").checked;
         const noteChecked = document.getElementById("toggleNote").checked;
         await requestWithTeacherAuth("/api/teacher/check", {
           method: "POST",
@@ -823,20 +914,23 @@
             year,
             date: selectedDate,
             qtChecked,
+            attitudeChecked,
             noteChecked
           })
         });
         if (dayTarget) {
           dayTarget.qtChecked = qtChecked;
+          dayTarget.attitudeChecked = attitudeChecked;
           dayTarget.noteChecked = noteChecked;
         }
         baseQt = qtChecked;
+        baseAttitude = attitudeChecked;
         baseNote = noteChecked;
         selectedQt = qtChecked;
+        selectedAttitude = attitudeChecked;
         selectedNote = noteChecked;
-        adjustSummaryAfterSave(previousQt, previousNote, qtChecked, noteChecked);
+        adjustSummaryAfterSave(previousQt, previousAttitude, previousNote, qtChecked, attitudeChecked, noteChecked);
         renderCalendarOnly();
-        updateDayMoveButtons();
         updateSaveButtonState();
         showToast("저장되었습니다.");
         if (autoAdvanceNextDay) {
@@ -916,12 +1010,34 @@
     }
     if (path.startsWith("/app/teacher/students/") && path.endsWith("/calendar")) {
       const params = new URLSearchParams(window.location.search);
+      if (String(params.get("source") || "").trim().toLowerCase() === "admin") {
+        navigate("/app/admin");
+        return;
+      }
       const year = parseYear(params.get("year"), new Date().getFullYear());
       navigate(`/app/teacher/students?year=${year}`);
       return;
     }
     history.back();
   });
+
+  function handleViewportMarkerLayoutChange() {
+    const nextDesktopMarkerLayout = isDesktopMarkerLayout();
+    if (nextDesktopMarkerLayout === lastDesktopMarkerLayout) {
+      return;
+    }
+    lastDesktopMarkerLayout = nextDesktopMarkerLayout;
+
+    const path = window.location.pathname;
+    if (
+      path.startsWith("/app/student/calendar/") ||
+      (path.startsWith("/app/teacher/students/") && path.endsWith("/calendar"))
+    ) {
+      renderRoute();
+    }
+  }
+
+  window.addEventListener("resize", handleViewportMarkerLayoutChange);
 
   window.addEventListener("popstate", renderRoute);
   renderRoute();

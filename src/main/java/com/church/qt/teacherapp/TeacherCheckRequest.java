@@ -7,6 +7,7 @@ public record TeacherCheckRequest(
         Integer year,
         LocalDate date,
         boolean qtChecked,
+        boolean attitudeChecked,
         boolean noteChecked
 ) {
 }

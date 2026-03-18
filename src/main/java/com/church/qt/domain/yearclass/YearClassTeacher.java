@@ -31,9 +31,17 @@ public class YearClassTeacher extends BaseTimeEntity {
     @JoinColumn(name = "teacher_id", nullable = false)
     private Teacher teacher;
 
+    @Column(name = "assignment_role", nullable = false, length = 20)
+    private String assignmentRole;
+
     @Builder
-    public YearClassTeacher(YearClass yearClass, Teacher teacher) {
+    public YearClassTeacher(YearClass yearClass, Teacher teacher, String assignmentRole) {
         this.yearClass = yearClass;
         this.teacher = teacher;
+        this.assignmentRole = assignmentRole == null || assignmentRole.isBlank() ? "ASSISTANT" : assignmentRole;
+    }
+
+    public void updateAssignmentRole(String assignmentRole) {
+        this.assignmentRole = assignmentRole == null || assignmentRole.isBlank() ? "ASSISTANT" : assignmentRole;
     }
 }

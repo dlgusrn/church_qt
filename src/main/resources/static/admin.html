@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>QT 관리자 페이지</title>
-  <link rel="stylesheet" href="/admin.css" />
+  <link rel="stylesheet" href="/admin.css?v=20260318-assign2" />
 </head>
 <body>
 <main class="wrap">
@@ -214,75 +214,50 @@
           <p class="section-copy">반을 선택한 뒤 교사와 학생을 체크해서 배정하거나 해제합니다.</p>
         </div>
       </div>
+      <div class="toolbar-row">
+        <label class="field-block assignment-target-field">연도 선택
+          <select id="assignmentYearFilter"></select>
+        </label>
+      </div>
       <div class="assignment-header">
         <label class="field-block assignment-target-field">반 선택
           <select id="assignmentYearClassSelect"></select>
         </label>
         <div id="assignmentTargetSummary" class="assignment-target-summary">선택한 반 정보가 없습니다.</div>
       </div>
-      <div class="manager-grid top-gap">
-        <section class="manager-panel">
+      <div class="subtab-bar top-gap" aria-label="배정 작업 서브탭">
+        <button class="subtab-btn active" type="button" data-assignment-tab-target="teachers">교사 배정</button>
+        <button class="subtab-btn" type="button" data-assignment-tab-target="students">학생 배정</button>
+      </div>
+      <div class="assignment-stack top-gap">
+        <section class="manager-panel assignment-panel active" data-assignment-panel="teachers">
           <div class="manager-head">
             <div>
               <h3>교사 배정</h3>
               <p class="section-copy">현재 반에 배정된 교사와 전체 교사 목록을 함께 보고 선택합니다.</p>
             </div>
-            <div class="row-actions">
-              <button id="btnAssignmentAssignTeachers" type="button">선택 배정</button>
-              <button id="btnAssignmentUnassignTeachers" class="ghost" type="button">선택 해제</button>
+            <div class="row-actions assignment-actions">
+              <button id="btnAssignmentAssignTeachers" type="button">배정</button>
+              <button id="btnAssignmentUnassignTeachers" class="ghost" type="button">해제</button>
             </div>
-          </div>
-          <div class="toolbar-row">
-            <label class="field-block">교사 검색
-              <input id="assignmentTeacherKeyword" type="text" placeholder="이름 또는 아이디 검색" />
-            </label>
-            <label class="toggle-inline">
-              <input id="assignmentTeacherAssignedOnly" type="checkbox" />
-              배정된 교사만 보기
-            </label>
           </div>
           <div id="assignmentTeacherList" class="table-card"></div>
         </section>
 
-        <section class="manager-panel">
+        <section class="manager-panel assignment-panel" data-assignment-panel="students">
           <div class="manager-head">
             <div>
               <h3>학생 배정</h3>
               <p class="section-copy">현재 반 소속 학생과 전체 학생 목록을 보고 바로 배정/해제합니다.</p>
             </div>
-            <div class="row-actions">
-              <button id="btnAssignmentAssignStudents" type="button">선택 배정</button>
-              <button id="btnAssignmentUnassignStudents" class="ghost" type="button">선택 해제</button>
+            <div class="row-actions assignment-actions">
+              <button id="btnAssignmentAssignStudents" type="button">배정</button>
+              <button id="btnAssignmentUnassignStudents" class="ghost" type="button">해제</button>
             </div>
-          </div>
-          <div class="toolbar-row">
-            <label class="field-block">학생 검색
-              <input id="assignmentStudentKeyword" type="text" placeholder="이름 검색" />
-            </label>
-            <label class="toggle-inline">
-              <input id="assignmentStudentAssignedOnly" type="checkbox" />
-              배정된 학생만 보기
-            </label>
           </div>
           <div id="assignmentStudentList" class="table-card"></div>
         </section>
       </div>
-      <section class="manager-panel top-gap">
-        <div class="manager-head">
-          <div>
-            <h3>학생 이동</h3>
-            <p class="section-copy">현재 반에서 선택한 학생을 다른 반으로 바로 이동합니다.</p>
-          </div>
-          <div class="row-actions">
-            <button id="btnAssignmentMoveStudents" type="button">선택 학생 이동</button>
-          </div>
-        </div>
-        <div class="toolbar-row">
-          <label class="field-block">이동할 반
-            <select id="assignmentMoveTargetYearClassSelect"></select>
-          </label>
-        </div>
-      </section>
       <div class="legacy-form hidden">
         <fieldset>
           <legend>교사 배정</legend>
@@ -310,8 +285,13 @@
       <div class="section-head">
         <div>
           <h2>교사 / 학생 관리</h2>
-          <p class="section-copy">교사와 학생 정보를 각각 조회하고 추가/수정합니다.</p>
+          <p class="section-copy">선택한 연도 기준으로 교사와 학생 운영 명단을 관리합니다.</p>
         </div>
+      </div>
+      <div class="toolbar-row">
+        <label class="field-block">연도 선택
+          <select id="poolYearFilter"></select>
+        </label>
       </div>
       <div class="subtab-bar" aria-label="교사 학생 관리 서브탭">
         <button class="subtab-btn active" type="button" data-pool-tab-target="teachers">교사 관리</button>
@@ -322,27 +302,20 @@
           <div class="manager-head">
             <div>
               <h3>교사 목록</h3>
-              <p class="section-copy">로그인 ID, 이름, 권한, 상태를 확인하고 수정합니다.</p>
+              <p class="section-copy">교사 이름, 역할, 연락처를 확인하고 수정합니다.</p>
             </div>
             <div class="row-actions">
               <button id="btnOpenCreateTeacher" type="button">교사 추가</button>
+            </div>
+          </div>
+          <div class="toolbar-row toolbar-row-split">
+            <div class="toolbar-group">
+              <span id="teacherPageInfo" class="status inline-status">1 / 1</span>
+            </div>
+            <div class="toolbar-group toolbar-group-right">
               <button id="btnTeacherPrev" class="ghost" type="button">이전</button>
               <button id="btnTeacherNext" class="ghost" type="button">다음</button>
             </div>
-          </div>
-          <div class="toolbar-row">
-            <label class="field-block">검색
-              <input id="teacherKeyword" type="text" placeholder="이름 또는 아이디 검색" />
-            </label>
-            <label class="toggle-inline">
-              <input id="teacherActiveOnly" type="checkbox" checked />
-              활성만 보기
-            </label>
-            <label class="field-block">페이지 크기
-              <input id="teacherPageSize" type="number" value="10" min="5" max="200" />
-            </label>
-            <button id="btnLoadTeacherPool" type="button">조회</button>
-            <span id="teacherPageInfo" class="status">0 / 0</span>
           </div>
           <div id="teacherManagementList" class="table-card"></div>
         </section>
@@ -351,27 +324,20 @@
           <div class="manager-head">
             <div>
               <h3>학생 목록</h3>
-              <p class="section-copy">학생명, 학년, 연락처, 상태를 확인하고 수정합니다.</p>
+              <p class="section-copy">학생 이름, 학년, 연락처를 확인하고 수정합니다.</p>
             </div>
             <div class="row-actions">
               <button id="btnOpenCreateStudent" type="button">학생 추가</button>
+            </div>
+          </div>
+          <div class="toolbar-row toolbar-row-split">
+            <div class="toolbar-group">
+              <span id="studentPageInfo" class="status inline-status">1 / 1</span>
+            </div>
+            <div class="toolbar-group toolbar-group-right">
               <button id="btnStudentPrev" class="ghost" type="button">이전</button>
               <button id="btnStudentNext" class="ghost" type="button">다음</button>
             </div>
-          </div>
-          <div class="toolbar-row">
-            <label class="field-block">검색
-              <input id="studentKeyword" type="text" placeholder="학생 이름 검색" />
-            </label>
-            <label class="toggle-inline">
-              <input id="studentActiveOnly" type="checkbox" checked />
-              활성만 보기
-            </label>
-            <label class="field-block">페이지 크기
-              <input id="studentPageSize" type="number" value="10" min="5" max="200" />
-            </label>
-            <button id="btnLoadStudentPool" type="button">조회</button>
-            <span id="studentPageInfo" class="status">0 / 0</span>
           </div>
           <div id="studentManagementList" class="table-card"></div>
         </section>
@@ -416,6 +382,8 @@
           </label>
           <label class="field-block">권한
             <select id="teacherEditorRole">
+              <option value="PASTOR">전도사</option>
+              <option value="DIRECTOR">부장</option>
               <option value="TEACHER">교사</option>
               <option value="ADMIN">관리자</option>
             </select>
@@ -427,7 +395,7 @@
               <input id="teacherEditorActive" type="checkbox" checked />
               <strong>활성</strong>
             </span>
-            <span class="toggle-card-copy">비활성으로 바꾸면 로그인과 운영 목록에서 제외할 수 있습니다.</span>
+            <span class="toggle-card-copy">선택한 연도 운영 명단에서 제외하려면 비활성으로 바꿉니다.</span>
           </label>
         </div>
       </section>
@@ -448,7 +416,7 @@
             <input id="studentEditorName" type="text" placeholder="김학생" />
           </label>
           <label class="field-block">학년
-            <input id="studentEditorSchoolGrade" type="number" placeholder="6" />
+            <input id="studentEditorSchoolGrade" type="text" placeholder="6" />
           </label>
           <label class="field-block">연락처
             <input id="studentEditorContactNumber" type="text" placeholder="010-0000-0000" />
@@ -463,7 +431,7 @@
               <input id="studentEditorActive" type="checkbox" checked />
               <strong>활성</strong>
             </span>
-            <span class="toggle-card-copy">비활성으로 바꾸면 학생 목록과 앱 사용 대상에서 제외할 수 있습니다.</span>
+            <span class="toggle-card-copy">선택한 연도 운영 명단과 앱 사용 대상에서 제외하려면 비활성으로 바꿉니다.</span>
           </label>
         </div>
       </section>
@@ -500,6 +468,6 @@
   </section>
 </main>
 
-<script src="/admin.js"></script>
+<script src="/admin.js?v=20260318-assign2"></script>
 </body>
 </html>

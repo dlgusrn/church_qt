@@ -1,11 +1,13 @@
 package com.church.qt.admin;
 
-import com.church.qt.domain.teacher.Teacher;
+import com.church.qt.domain.yearteacher.YearTeacher;
 
 import java.time.LocalDateTime;
 
 public record AdminTeacherResponse(
+        Long yearTeacherId,
         Long teacherId,
+        Integer yearValue,
         String loginId,
         String teacherName,
         String contactNumber,
@@ -15,17 +17,19 @@ public record AdminTeacherResponse(
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
-    public static AdminTeacherResponse from(Teacher teacher) {
+    public static AdminTeacherResponse from(YearTeacher yearTeacher) {
         return new AdminTeacherResponse(
-                teacher.getId(),
-                teacher.getLoginId(),
-                teacher.getTeacherName(),
-                teacher.getContactNumber(),
-                teacher.getBirthDate(),
-                teacher.getEffectiveRole().name(),
-                teacher.getActive(),
-                teacher.getCreatedAt(),
-                teacher.getUpdatedAt()
+                yearTeacher.getId(),
+                yearTeacher.getTeacher().getId(),
+                yearTeacher.getYear().getYearValue(),
+                yearTeacher.getTeacher().getLoginId(),
+                yearTeacher.getTeacher().getTeacherName(),
+                yearTeacher.getTeacher().getContactNumber(),
+                yearTeacher.getTeacher().getBirthDate(),
+                yearTeacher.getTeacher().getEffectiveRole().name(),
+                yearTeacher.getActive(),
+                yearTeacher.getCreatedAt(),
+                yearTeacher.getUpdatedAt()
         );
     }
 }

@@ -3,6 +3,7 @@
   const statusLine = document.getElementById("statusLine");
   const dashboardClassBoard = document.getElementById("dashboardClassBoard");
   const queryYearInput = document.getElementById("queryYear");
+  const poolYearFilter = document.getElementById("poolYearFilter");
   const auditResult = document.getElementById("auditResult");
   const teacherPool = document.getElementById("teacherPool");
   const studentPool = document.getElementById("studentPool");
@@ -14,6 +15,8 @@
   const yearClassPanels = Array.from(document.querySelectorAll(".yearclass-panel"));
   const poolTabButtons = Array.from(document.querySelectorAll("[data-pool-tab-target]"));
   const poolPanels = Array.from(document.querySelectorAll(".pool-panel"));
+  const assignmentTabButtons = Array.from(document.querySelectorAll("[data-assignment-tab-target]"));
+  const assignmentPanels = Array.from(document.querySelectorAll(".assignment-panel"));
   const adminProtected = document.getElementById("adminProtected");
   const adminAuthSection = document.getElementById("adminAuthSection");
   const adminLoginMessage = document.getElementById("adminLoginMessage");
@@ -61,9 +64,6 @@
     studentId: null
   };
 
-  const savedPoolKeyword = localStorage.getItem("qt_admin_pool_keyword");
-  const savedPoolActiveOnly = localStorage.getItem("qt_admin_pool_active_only");
-  const savedPoolPageSize = localStorage.getItem("qt_admin_pool_page_size");
   const savedAuditActionType = localStorage.getItem("qt_admin_audit_action_type");
   const savedAuditKeyword = localStorage.getItem("qt_admin_audit_keyword");
   const savedAuditFromAt = localStorage.getItem("qt_admin_audit_from_at");
@@ -75,19 +75,7 @@
   const savedActiveTab = localStorage.getItem("qt_admin_active_tab") || "dashboard";
   const savedYearClassTab = localStorage.getItem("qt_admin_yearclass_tab") || "years";
   const savedPoolTab = localStorage.getItem("qt_admin_pool_tab") || "teachers";
-  if (savedPoolKeyword) {
-    document.getElementById("teacherKeyword").value = savedPoolKeyword;
-    document.getElementById("studentKeyword").value = savedPoolKeyword;
-  }
-  if (savedPoolActiveOnly) {
-    const checked = savedPoolActiveOnly === "true";
-    document.getElementById("teacherActiveOnly").checked = checked;
-    document.getElementById("studentActiveOnly").checked = checked;
-  }
-  if (savedPoolPageSize) {
-    document.getElementById("teacherPageSize").value = savedPoolPageSize;
-    document.getElementById("studentPageSize").value = savedPoolPageSize;
-  }
+  const savedAssignmentTab = localStorage.getItem("qt_admin_assignment_tab") || "teachers";
   if (savedAuditActionType) document.getElementById("auditActionType").value = savedAuditActionType;
   if (savedAuditKeyword) document.getElementById("auditKeyword").value = savedAuditKeyword;
   if (savedAuditFromAt) document.getElementById("auditFromAt").value = savedAuditFromAt;
@@ -234,6 +222,19 @@
     }
   }
 
+  function setAssignmentTab(tabName) {
+    const safeTab = assignmentPanels.some(panel => panel.dataset.assignmentPanel === tabName) ? tabName : "teachers";
+    assignmentTabButtons.forEach(button => {
+      const active = button.dataset.assignmentTabTarget === safeTab;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    assignmentPanels.forEach(panel => {
+      panel.classList.toggle("active", panel.dataset.assignmentPanel === safeTab);
+    });
+    localStorage.setItem("qt_admin_assignment_tab", safeTab);
+  }
+
   tabButtons.forEach(button => {
     button.addEventListener("click", function () {
       setActiveTab(button.dataset.tabTarget);
@@ -254,9 +255,16 @@
     });
   });
 
+  assignmentTabButtons.forEach(button => {
+    button.addEventListener("click", function () {
+      setAssignmentTab(button.dataset.assignmentTabTarget);
+    });
+  });
+
   setActiveTab(savedActiveTab);
   setYearClassTab(savedYearClassTab);
   setPoolTab(savedPoolTab);
+  setAssignmentTab(savedAssignmentTab);
   setAdminAuthenticated(false);
 
   function render(data) {
@@ -331,8 +339,8 @@
     setUndoAction(null);
     teacherPool.innerHTML = "";
     studentPool.innerHTML = "";
-    teacherPageInfo.textContent = "0 / 0";
-    studentPageInfo.textContent = "0 / 0";
+    teacherPageInfo.textContent = "1 / 1";
+    studentPageInfo.textContent = "1 / 1";
     auditResult.innerHTML = "";
     bootstrapUiState.loaded = "없음";
     bootstrapUiState.contract = "-";
@@ -527,6 +535,39 @@
     return digits;
   }
 
+  function formatSchoolGrade(value) {
+    const text = String(value || "").trim();
+    return text ? `${text}학년` : "-";
+  }
+
+  function roleLabel(role) {
+    const normalized = String(role || "").toUpperCase();
+    if (normalized === "ADMIN") return "관리자";
+    if (normalized === "PASTOR") return "전도사";
+    if (normalized === "DIRECTOR") return "부장";
+    return "교사";
+  }
+
+  function rolePriority(role) {
+    const normalized = String(role || "").toUpperCase();
+    if (normalized === "ADMIN") return 0;
+    if (normalized === "PASTOR") return 1;
+    if (normalized === "DIRECTOR") return 2;
+    return 3;
+  }
+
+  function assignmentRoleLabel(role) {
+    return String(role || "").toUpperCase() === "HOMEROOM" ? "담임" : "보조";
+  }
+
+  function assignmentRoleOptions(selectedRole) {
+    const normalized = String(selectedRole || "ASSISTANT").toUpperCase();
+    return `
+      <option value="ASSISTANT" ${normalized === "ASSISTANT" ? "selected" : ""}>보조</option>
+      <option value="HOMEROOM" ${normalized === "HOMEROOM" ? "selected" : ""}>담임</option>
+    `;
+  }
+
   function getActiveYearValue() {
     const activeYear = cachedYears.find(year => !!year.active);
     if (activeYear && Number.isFinite(Number(activeYear.yearValue))) {
@@ -539,8 +580,16 @@
     const options = cachedYears.map(year => `<option value="${year.yearValue}">${year.yearValue}년</option>`).join("");
     const yearFilter = document.getElementById("classManagementYearFilter");
     const classYearSelect = document.getElementById("classEditorYearValue");
+    const poolYearSelect = document.getElementById("poolYearFilter");
+    const assignmentYearSelect = document.getElementById("assignmentYearFilter");
     yearFilter.innerHTML = options;
     classYearSelect.innerHTML = options;
+    if (poolYearSelect) {
+      poolYearSelect.innerHTML = options;
+    }
+    if (assignmentYearSelect) {
+      assignmentYearSelect.innerHTML = options;
+    }
 
     if (!yearFilter.value && cachedYears[0]) {
       yearFilter.value = String(cachedYears[0].yearValue);
@@ -548,6 +597,20 @@
     if (!classYearSelect.value && cachedYears[0]) {
       classYearSelect.value = String(cachedYears[0].yearValue);
     }
+    if (poolYearSelect && !poolYearSelect.value && cachedYears[0]) {
+      poolYearSelect.value = String(getActiveYearValue() || cachedYears[0].yearValue);
+    }
+    if (assignmentYearSelect && !assignmentYearSelect.value && cachedYears[0]) {
+      assignmentYearSelect.value = String(getActiveYearValue() || cachedYears[0].yearValue);
+    }
+  }
+
+  function getPoolYearValue() {
+    const selected = Number(poolYearFilter && poolYearFilter.value);
+    if (Number.isFinite(selected)) {
+      return selected;
+    }
+    return getActiveYearValue();
   }
 
   function currentAssignmentYearClassId() {
@@ -557,6 +620,14 @@
     return Number.isFinite(value) && value > 0 ? value : null;
   }
 
+  function getAssignmentYearValue() {
+    const selected = Number(document.getElementById("assignmentYearFilter").value);
+    if (Number.isFinite(selected)) {
+      return selected;
+    }
+    return getActiveYearValue();
+  }
+
   function currentAssignmentYearClass() {
     const yearClassId = currentAssignmentYearClassId();
     return cachedYearClasses.find(item => item.yearClassId === yearClassId) || null;
@@ -564,12 +635,10 @@
 
   function syncAssignmentYearClassOptions() {
     const select = document.getElementById("assignmentYearClassSelect");
-    const moveTargetSelect = document.getElementById("assignmentMoveTargetYearClassSelect");
     const options = cachedYearClasses.map(item =>
-      `<option value="${item.yearClassId}">${escapeHtml(item.yearValue)}년 ${escapeHtml(item.className)}</option>`
+      `<option value="${item.yearClassId}">${escapeHtml(item.className)}</option>`
     ).join("");
     select.innerHTML = options;
-    moveTargetSelect.innerHTML = options;
 
     const current = currentAssignmentYearClassId();
     if (current && cachedYearClasses.some(item => item.yearClassId === current)) {
@@ -580,15 +649,6 @@
       document.getElementById("assignTeacherYearClassId").value = "";
       document.getElementById("assignStudentYearClassId").value = "";
     }
-
-    const moveCurrent = Number(moveTargetSelect.value);
-    const currentYearClassId = Number(select.value);
-    const fallbackTarget = cachedYearClasses.find(item => item.yearClassId !== currentYearClassId) || cachedYearClasses[0];
-    if (moveCurrent && cachedYearClasses.some(item => item.yearClassId === moveCurrent && item.yearClassId !== currentYearClassId)) {
-      moveTargetSelect.value = String(moveCurrent);
-    } else if (fallbackTarget) {
-      moveTargetSelect.value = String(fallbackTarget.yearClassId);
-    }
   }
 
   function renderAssignmentManagement() {
@@ -596,10 +656,6 @@
     const studentContainer = document.getElementById("assignmentStudentList");
     const summary = document.getElementById("assignmentTargetSummary");
     const yearClass = currentAssignmentYearClass();
-    const teacherKeyword = document.getElementById("assignmentTeacherKeyword").value.trim().toLowerCase();
-    const studentKeyword = document.getElementById("assignmentStudentKeyword").value.trim().toLowerCase();
-    const teacherAssignedOnly = document.getElementById("assignmentTeacherAssignedOnly").checked;
-    const studentAssignedOnly = document.getElementById("assignmentStudentAssignedOnly").checked;
 
     if (!yearClass) {
       if (summary) summary.textContent = "선택한 반 정보가 없습니다.";
@@ -610,22 +666,34 @@
 
     const assignedTeacherIds = new Set((yearClass.teachers || []).map(item => item.teacherId));
     const assignedStudentIds = new Set((yearClass.students || []).map(item => item.studentId));
+    const assignedTeacherMap = new Map((yearClass.teachers || []).map(item => [item.teacherId, item]));
     if (summary) {
       summary.textContent = `${yearClass.yearValue}년 ${yearClass.className} · 교사 ${(yearClass.teachers || []).length}명 · 학생 ${(yearClass.students || []).length}명`;
     }
+    const assignmentYearFilter = document.getElementById("assignmentYearFilter");
+    if (assignmentYearFilter && Number.isFinite(Number(yearClass.yearValue))) {
+      assignmentYearFilter.value = String(yearClass.yearValue);
+    }
 
     const filteredTeachers = assignmentTeacherItems
-      .filter(item => !teacherAssignedOnly || assignedTeacherIds.has(item.teacherId))
-      .filter(item => !teacherKeyword
-        || String(item.teacherName || "").toLowerCase().includes(teacherKeyword)
-        || String(item.loginId || "").toLowerCase().includes(teacherKeyword))
       .slice()
-      .sort((a, b) => Number(assignedTeacherIds.has(b.teacherId)) - Number(assignedTeacherIds.has(a.teacherId)) || String(a.teacherName || "").localeCompare(String(b.teacherName || ""), "ko"));
+      .sort((a, b) => {
+        const assignedDiff = Number(assignedTeacherIds.has(b.teacherId)) - Number(assignedTeacherIds.has(a.teacherId));
+        if (assignedDiff !== 0) return assignedDiff;
+        const roleDiff = rolePriority(a.role) - rolePriority(b.role);
+        if (roleDiff !== 0) return roleDiff;
+        return String(a.teacherName || "").localeCompare(String(b.teacherName || ""), "ko");
+      });
     const filteredStudents = assignmentStudentItems
-      .filter(item => !studentAssignedOnly || assignedStudentIds.has(item.studentId))
-      .filter(item => !studentKeyword || String(item.studentName || "").toLowerCase().includes(studentKeyword))
       .slice()
-      .sort((a, b) => Number(assignedStudentIds.has(b.studentId)) - Number(assignedStudentIds.has(a.studentId)) || String(a.studentName || "").localeCompare(String(b.studentName || ""), "ko"));
+      .sort((a, b) => {
+        const assignedDiff = Number(assignedStudentIds.has(b.studentId)) - Number(assignedStudentIds.has(a.studentId));
+        if (assignedDiff !== 0) return assignedDiff;
+        const gradeA = Number.isFinite(Number(a.schoolGrade)) ? Number(a.schoolGrade) : -1;
+        const gradeB = Number.isFinite(Number(b.schoolGrade)) ? Number(b.schoolGrade) : -1;
+        if (gradeA !== gradeB) return gradeB - gradeA;
+        return String(a.studentName || "").localeCompare(String(b.studentName || ""), "ko");
+      });
 
     teacherContainer.innerHTML = filteredTeachers.length ? `
       <table class="manager-table">
@@ -633,10 +701,8 @@
           <tr>
             <th class="selection-cell">선택</th>
             <th>No</th>
-            <th>코드</th>
             <th>이름</th>
-            <th>로그인 ID</th>
-            <th>역할</th>
+            <th>반 역할</th>
             <th>상태</th>
           </tr>
         </thead>
@@ -647,10 +713,14 @@
                 <input class="table-checkbox assignmentTeacherSelect" type="checkbox" value="${item.teacherId}" ${selectedAssignmentTeacherIds.has(item.teacherId) ? "checked" : ""} />
               </td>
               <td data-label="No">${index + 1}</td>
-              <td data-label="코드">${escapeHtml(item.teacherId)}</td>
               <td data-label="이름">${escapeHtml(item.teacherName || "-")}</td>
-              <td data-label="로그인 ID">${escapeHtml(item.loginId || "-")}</td>
-              <td data-label="역할">${escapeHtml(item.role || "-")}</td>
+              <td data-label="반 역할">
+                ${assignedTeacherIds.has(item.teacherId)
+                  ? `<select class="assignmentTeacherRoleSelect" data-teacher-id="${item.teacherId}">
+                      ${assignmentRoleOptions(assignedTeacherMap.get(item.teacherId)?.assignmentRole)}
+                    </select>`
+                  : '<span class="simple-meta">-</span>'}
+              </td>
               <td data-label="상태"><span class="assignment-status-pill ${assignedTeacherIds.has(item.teacherId) ? "assigned" : "unassigned"}">${assignedTeacherIds.has(item.teacherId) ? "배정됨" : "미배정"}</span></td>
             </tr>
           `).join("")}
@@ -664,10 +734,8 @@
           <tr>
             <th class="selection-cell">선택</th>
             <th>No</th>
-            <th>코드</th>
             <th>이름</th>
             <th>학년</th>
-            <th>연락처</th>
             <th>상태</th>
           </tr>
         </thead>
@@ -678,10 +746,8 @@
                 <input class="table-checkbox assignmentStudentSelect" type="checkbox" value="${item.studentId}" ${selectedAssignmentStudentIds.has(item.studentId) ? "checked" : ""} />
               </td>
               <td data-label="No">${index + 1}</td>
-              <td data-label="코드">${escapeHtml(item.studentId)}</td>
               <td data-label="이름">${escapeHtml(item.studentName || "-")}</td>
-              <td data-label="학년">${escapeHtml(item.schoolGrade || "-")}학년</td>
-              <td data-label="연락처">${escapeHtml(formatContactNumber(item.contactNumber))}</td>
+              <td data-label="학년">${escapeHtml(formatSchoolGrade(item.schoolGrade))}</td>
               <td data-label="상태"><span class="assignment-status-pill ${assignedStudentIds.has(item.studentId) ? "assigned" : "unassigned"}">${assignedStudentIds.has(item.studentId) ? "배정됨" : "미배정"}</span></td>
             </tr>
           `).join("")}
@@ -697,6 +763,19 @@
       });
     });
 
+    teacherContainer.querySelectorAll(".assignmentTeacherRoleSelect").forEach(select => {
+      select.addEventListener("change", async function () {
+        const teacherId = Number(select.dataset.teacherId);
+        const assignmentRole = String(select.value || "ASSISTANT").toUpperCase();
+        try {
+          await patchTeacherAssignmentRole(yearClass.yearClassId, teacherId, assignmentRole);
+          await refreshYearClasses();
+        } catch (e) {
+          render(e.message);
+        }
+      });
+    });
+
     studentContainer.querySelectorAll(".assignmentStudentSelect").forEach(checkbox => {
       checkbox.addEventListener("change", function () {
         const studentId = Number(checkbox.value);
@@ -707,9 +786,18 @@
   }
 
   async function loadAssignmentPools() {
+    const assignmentYear = getAssignmentYearValue()
+      || (currentAssignmentYearClass() && currentAssignmentYearClass().yearValue)
+      || (Number.isFinite(Number(queryYearInput.value)) ? Number(queryYearInput.value) : null);
+    if (!Number.isFinite(Number(assignmentYear))) {
+      assignmentTeacherItems = [];
+      assignmentStudentItems = [];
+      renderAssignmentManagement();
+      return;
+    }
     const [teachersResponse, studentsResponse] = await Promise.all([
-      api("/api/admin/teachers?activeOnly=true&limit=200&offset=0", { method: "GET" }),
-      api("/api/admin/students?activeOnly=true&limit=200&offset=0", { method: "GET" })
+      api(`/api/admin/teachers?year=${assignmentYear}&activeOnly=true&limit=200&offset=0`, { method: "GET" }),
+      api(`/api/admin/students?year=${assignmentYear}&activeOnly=true&limit=200&offset=0`, { method: "GET" })
     ]);
     assignmentTeacherItems = Array.isArray(teachersResponse.items) ? teachersResponse.items : [];
     assignmentStudentItems = Array.isArray(studentsResponse.items) ? studentsResponse.items : [];
@@ -887,7 +975,6 @@
     const sortedTeacherItems = teacherPoolItems
       .slice()
       .sort((a, b) => {
-        const rolePriority = (role) => role === "ADMIN" ? 0 : 1;
         const byRole = rolePriority(a.role) - rolePriority(b.role);
         if (byRole !== 0) return byRole;
         return String(a.teacherName || "").localeCompare(String(b.teacherName || ""), "ko");
@@ -898,13 +985,10 @@
         <thead>
           <tr>
             <th>No</th>
-            <th>코드</th>
-            <th>로그인 ID</th>
             <th>이름</th>
             <th>역할</th>
             <th>연락처</th>
             <th>생년월일</th>
-            <th>상태</th>
             <th>관리</th>
           </tr>
         </thead>
@@ -912,13 +996,10 @@
           ${sortedTeacherItems.map((item, index) => `
             <tr>
               <td data-label="No">${index + 1}</td>
-              <td data-label="코드">${escapeHtml(item.teacherId)}</td>
-              <td data-label="로그인 ID">${escapeHtml(item.loginId || "-")}</td>
               <td data-label="이름">${escapeHtml(item.teacherName || "-")}</td>
-              <td data-label="역할"><span class="badge-soft">${escapeHtml(item.role || "-")}</span></td>
+              <td data-label="역할">${escapeHtml(roleLabel(item.role))}</td>
               <td data-label="연락처">${escapeHtml(formatContactNumber(item.contactNumber))}</td>
               <td data-label="생년월일">${escapeHtml(formatBirthDate(item.birthDate))}</td>
-              <td data-label="상태"><span class="badge-soft">${item.active ? "활성" : "비활성"}</span></td>
               <td data-label="관리"><button class="ghost btnEditTeacherRow" type="button" data-teacher-id="${item.teacherId}">수정</button></td>
             </tr>
           `).join("")}
@@ -960,12 +1041,10 @@
         <thead>
           <tr>
             <th>No</th>
-            <th>코드</th>
             <th>이름</th>
             <th>학년</th>
             <th>연락처</th>
             <th>생년월일</th>
-            <th>상태</th>
             <th>관리</th>
           </tr>
         </thead>
@@ -973,12 +1052,10 @@
           ${studentPoolItems.map((item, index) => `
             <tr>
               <td data-label="No">${index + 1}</td>
-              <td data-label="코드">${escapeHtml(item.studentId)}</td>
               <td data-label="이름">${escapeHtml(item.studentName || "-")}</td>
-              <td data-label="학년">${escapeHtml(item.schoolGrade || "-")}학년</td>
+              <td data-label="학년">${escapeHtml(formatSchoolGrade(item.schoolGrade))}</td>
               <td data-label="연락처">${escapeHtml(formatContactNumber(item.contactNumber))}</td>
               <td data-label="생년월일">${escapeHtml(formatBirthDate(item.birthDate))}</td>
-              <td data-label="상태"><span class="badge-soft">${item.active ? "활성" : "비활성"}</span></td>
               <td data-label="관리"><button class="ghost btnEditStudentRow" type="button" data-student-id="${item.studentId}">수정</button></td>
             </tr>
           `).join("")}
@@ -1077,13 +1154,6 @@
     if (assignmentSelect && yearClassId) {
       assignmentSelect.value = String(yearClassId);
     }
-    const moveTargetSelect = document.getElementById("assignmentMoveTargetYearClassSelect");
-    if (moveTargetSelect) {
-      const fallbackTarget = cachedYearClasses.find(item => item.yearClassId !== yearClassId);
-      if (fallbackTarget) {
-        moveTargetSelect.value = String(fallbackTarget.yearClassId);
-      }
-    }
     selectedAssignmentTeacherIds.clear();
     selectedAssignmentStudentIds.clear();
     setStatus("작업 대상 반 설정: " + yearClassId);
@@ -1173,6 +1243,13 @@
     });
   }
 
+  function patchTeacherAssignmentRole(yearClassId, teacherId, assignmentRole) {
+    return api(`/api/admin/year-classes/${yearClassId}/teachers/${teacherId}/assignment-role`, {
+      method: "PATCH",
+      body: JSON.stringify({ assignmentRole })
+    });
+  }
+
   function postAssignStudents(yearClassId, studentIds) {
     return api("/api/admin/year-classes/" + yearClassId + "/students", {
       method: "POST",
@@ -1209,7 +1286,7 @@
 
   function buildStudentCalendarUrl(studentId, yearValue) {
     const today = new Date();
-    return `/app/student/calendar/${studentId}?year=${yearValue}&month=${today.getMonth() + 1}`;
+    return `/app/teacher/students/${studentId}/calendar?year=${yearValue}&month=${today.getMonth() + 1}&source=admin`;
   }
 
   function applyFilterAndRender() {
@@ -1254,6 +1331,7 @@
               <th>학년</th>
               <th>QT</th>
               <th>노트</th>
+              <th>태도</th>
               <th>총합</th>
             </tr>
           </thead>
@@ -1262,9 +1340,10 @@
               <tr>
                 <td data-label="순위">${index + 1}</td>
                 <td data-label="이름">${escapeHtml(student.studentName)}</td>
-                <td data-label="학년">${escapeHtml(student.schoolGrade || "-")}학년</td>
+                <td data-label="학년">${escapeHtml(formatSchoolGrade(student.schoolGrade))}</td>
                 <td data-label="QT"><strong>${student.qtCount || 0}</strong></td>
                 <td data-label="노트">${student.noteCount || 0}</td>
+                <td data-label="태도">${student.attitudeCount || 0}</td>
                 <td data-label="총합">${student.totalCount || 0}</td>
               </tr>
             `).join("")}
@@ -1286,9 +1365,8 @@
           <div class="dashboard-class-head">
             <div>
               <h3 class="dashboard-class-title">${escapeHtml(item.className)}</h3>
-              <p class="dashboard-class-meta">${escapeHtml(item.yearValue)}년 · 담당 : ${teachers.map(t => t.teacherName).join(", ") || "미배정"} · 학생 ${students.length}명</p>
+              <p class="dashboard-class-meta">${escapeHtml(item.yearValue)}년 · 담당 : ${teachers.map(t => `${t.teacherName}${String(t.assignmentRole || "").toUpperCase() === "HOMEROOM" ? " (담임)" : ""}`).join(", ") || "미배정"} · 학생 ${students.length}명</p>
             </div>
-            <button class="ghost btnSetTarget" type="button" data-year-class-id="${item.yearClassId}">작업 반 선택</button>
           </div>
 
           <div class="student-chip-grid">
@@ -1296,9 +1374,9 @@
               <button class="student-link-card btnOpenStudentCalendar" type="button" data-student-id="${student.studentId}" data-year-value="${item.yearValue}">
                 <div class="student-link-main">
                   <strong>${escapeHtml(student.studentName)}${student.schoolGrade ? ` (${escapeHtml(student.schoolGrade)}학년)` : ""}</strong>
-                  <span class="badge-soft">QT ${student.qtCount || 0} · 노트 ${student.noteCount || 0}</span>
+                  <span class="badge-soft">🍇 QT ${student.qtCount || 0} · 🍐 노트 ${student.noteCount || 0} · 🫒 태도 ${student.attitudeCount || 0}</span>
                 </div>
-                <div class="student-link-sub">총 ${student.totalCount || 0}개 · 누르면 학생 달력 열기</div>
+                <div class="student-link-sub">총 ${student.totalCount || 0}개 · 누르면 체크 달력 열기</div>
               </button>
             `).join("") : '<div class="table-empty">등록된 학생이 없습니다.</div>'}
           </div>
@@ -1317,13 +1395,6 @@
         </article>
       `;
     }).join("");
-
-    dashboardClassBoard.querySelectorAll(".btnSetTarget").forEach(button => {
-      button.addEventListener("click", function () {
-        setAssignmentTarget(Number(button.dataset.yearClassId));
-        setActiveTab("assignment");
-      });
-    });
 
     dashboardClassBoard.querySelectorAll(".btnOpenStudentCalendar").forEach(button => {
       button.addEventListener("click", function () {
@@ -1345,21 +1416,21 @@
     cachedYearClasses = Array.isArray(body) ? body : [];
     applyFilterAndRender();
     syncYearOptions();
+    const assignmentYearFilter = document.getElementById("assignmentYearFilter");
+    if (assignmentYearFilter) {
+      assignmentYearFilter.value = String(year);
+    }
     syncAssignmentYearClassOptions();
     document.getElementById("classManagementYearFilter").value = String(year);
     renderClassManagement();
     renderAssignmentManagement();
+    await loadAssignmentPools();
     return body;
   }
 
   async function loadBootstrapAndDefaultYear() {
     const bootstrapParams = new URLSearchParams();
-    const teacherKeyword = document.getElementById("teacherKeyword").value.trim();
-    const teacherActiveOnly = document.getElementById("teacherActiveOnly").checked;
-    const teacherLimit = teacherPageSize();
-    if (teacherKeyword) bootstrapParams.set("poolKeyword", teacherKeyword);
-    bootstrapParams.set("poolActiveOnly", String(teacherActiveOnly));
-    bootstrapParams.set("poolLimit", String(teacherLimit));
+    bootstrapParams.set("poolLimit", "10");
     const auditLimit = Number(document.getElementById("auditLimit").value || 100);
     const auditOffset = Number(document.getElementById("auditOffset").value || 0);
     const auditActorTeacherIdRaw = document.getElementById("auditActorTeacherId").value.trim();
@@ -1414,12 +1485,33 @@
     if (Number.isFinite(activeYearValue)) {
       queryYearInput.value = String(activeYearValue);
       dashboardYearValue = activeYearValue;
+      if (poolYearFilter) {
+        poolYearFilter.value = String(activeYearValue);
+      }
+      const assignmentYearFilter = document.getElementById("assignmentYearFilter");
+      if (assignmentYearFilter) {
+        assignmentYearFilter.value = String(activeYearValue);
+      }
     } else if (Number.isFinite(selectedYear)) {
       queryYearInput.value = String(selectedYear);
       dashboardYearValue = selectedYear;
+      if (poolYearFilter) {
+        poolYearFilter.value = String(selectedYear);
+      }
+      const assignmentYearFilter = document.getElementById("assignmentYearFilter");
+      if (assignmentYearFilter) {
+        assignmentYearFilter.value = String(selectedYear);
+      }
     } else if (years.length > 0 && Number.isFinite(Number(years[0].yearValue))) {
       queryYearInput.value = String(years[0].yearValue);
       dashboardYearValue = Number(years[0].yearValue);
+      if (poolYearFilter) {
+        poolYearFilter.value = String(years[0].yearValue);
+      }
+      const assignmentYearFilter = document.getElementById("assignmentYearFilter");
+      if (assignmentYearFilter) {
+        assignmentYearFilter.value = String(years[0].yearValue);
+      }
     }
     if (queryYearInput.value) {
       if (yearClasses.length > 0) {
@@ -1450,15 +1542,7 @@
       renderAuditLogsResponse(bootstrapAuditLogs);
     }
     if (bootstrapPool) {
-      if (typeof bootstrapPool.keyword === "string") {
-        document.getElementById("teacherKeyword").value = bootstrapPool.keyword;
-      }
-      if (typeof bootstrapPool.activeOnly === "boolean") {
-        document.getElementById("teacherActiveOnly").checked = bootstrapPool.activeOnly;
-      }
-      if (Number.isFinite(Number(bootstrapPool.limit))) {
-        document.getElementById("teacherPageSize").value = String(bootstrapPool.limit);
-      }
+      // no-op: teacher/student pool page size is fixed to 10
     }
     if (bootstrapAudit) {
       if (Number.isFinite(Number(bootstrapAudit.actorTeacherId))) {
@@ -1480,47 +1564,43 @@
   }
 
   function buildTeacherPoolQuery(limit, offset) {
-    const keyword = document.getElementById("teacherKeyword").value.trim();
-    const activeOnly = document.getElementById("teacherActiveOnly").checked;
-    localStorage.setItem("qt_admin_pool_keyword", keyword);
-    localStorage.setItem("qt_admin_pool_active_only", String(activeOnly));
-    localStorage.setItem("qt_admin_pool_page_size", String(teacherPageSize()));
+    const year = getPoolYearValue();
+    if (!Number.isFinite(Number(year))) {
+      throw new Error("관리할 연도를 먼저 선택해 주세요.");
+    }
     const params = new URLSearchParams();
-    params.set("activeOnly", String(activeOnly));
+    params.set("year", String(year));
+    params.set("activeOnly", "true");
     params.set("limit", String(limit));
     params.set("offset", String(offset));
-    if (keyword) params.set("keyword", keyword);
     return params;
   }
 
   function buildStudentPoolQuery(limit, offset) {
-    const keyword = document.getElementById("studentKeyword").value.trim();
-    const activeOnly = document.getElementById("studentActiveOnly").checked;
-    localStorage.setItem("qt_admin_pool_keyword", keyword);
-    localStorage.setItem("qt_admin_pool_active_only", String(activeOnly));
-    localStorage.setItem("qt_admin_pool_page_size", String(studentPageSize()));
+    const year = getPoolYearValue();
+    if (!Number.isFinite(Number(year))) {
+      throw new Error("관리할 연도를 먼저 선택해 주세요.");
+    }
     const params = new URLSearchParams();
-    params.set("activeOnly", String(activeOnly));
+    params.set("year", String(year));
+    params.set("activeOnly", "true");
     params.set("limit", String(limit));
     params.set("offset", String(offset));
-    if (keyword) params.set("keyword", keyword);
     return params;
   }
 
   function teacherPageSize() {
-    const value = Number(document.getElementById("teacherPageSize").value || 10);
-    return Math.min(Math.max(value, 5), 200);
+    return 10;
   }
 
   function studentPageSize() {
-    const value = Number(document.getElementById("studentPageSize").value || 10);
-    return Math.min(Math.max(value, 5), 200);
+    return 10;
   }
 
   function renderTeacherPoolPage() {
     const totalPages = Math.max(1, Math.ceil(teacherTotalCount / teacherPageSize()));
     teacherPage = Math.min(Math.max(teacherPage, 1), totalPages);
-    teacherPageInfo.textContent = `${teacherPage} / ${totalPages} (${teacherTotalCount})`;
+    teacherPageInfo.textContent = `${teacherPage} / ${totalPages}`;
     renderTeacherManagement();
     teacherPool.innerHTML = "";
     teacherPoolItems.forEach(item => {
@@ -1528,7 +1608,7 @@
       div.className = "pool-item";
       div.innerHTML = `
         <div>
-          <label><input type="checkbox" class="teacherSelect" value="${item.teacherId}" ${selectedTeacherIds.has(item.teacherId) ? "checked" : ""} /> <strong>${item.teacherName}</strong> <small>#${item.teacherId} / ${item.role}</small></label>
+          <label><input type="checkbox" class="teacherSelect" value="${item.teacherId}" ${selectedTeacherIds.has(item.teacherId) ? "checked" : ""} /> <strong>${item.teacherName}</strong> <small>#${item.teacherId} / ${roleLabel(item.role)}</small></label>
         </div>
       `;
       const checkbox = div.querySelector(".teacherSelect");
@@ -1566,7 +1646,7 @@
   function renderStudentPoolPage() {
     const totalPages = Math.max(1, Math.ceil(studentTotalCount / studentPageSize()));
     studentPage = Math.min(Math.max(studentPage, 1), totalPages);
-    studentPageInfo.textContent = `${studentPage} / ${totalPages} (${studentTotalCount})`;
+    studentPageInfo.textContent = `${studentPage} / ${totalPages}`;
     renderStudentManagement();
     studentPool.innerHTML = "";
     studentPoolItems.forEach(item => {
@@ -1574,7 +1654,7 @@
       div.className = "pool-item";
       div.innerHTML = `
         <div>
-          <label><input type="checkbox" class="studentSelect" value="${item.studentId}" ${selectedStudentIds.has(item.studentId) ? "checked" : ""} /> <strong>${item.studentName}</strong> <small>#${item.studentId} / ${item.schoolGrade || "-"}학년</small></label>
+          <label><input type="checkbox" class="studentSelect" value="${item.studentId}" ${selectedStudentIds.has(item.studentId) ? "checked" : ""} /> <strong>${item.studentName}</strong> <small>#${item.studentId} / ${formatSchoolGrade(item.schoolGrade)}</small></label>
         </div>
       `;
       const checkbox = div.querySelector(".studentSelect");
@@ -1753,6 +1833,36 @@
       render(e.message);
     }
   });
+  if (poolYearFilter) {
+    poolYearFilter.addEventListener("change", async function () {
+      try {
+        teacherPage = 1;
+        studentPage = 1;
+        if ((localStorage.getItem("qt_admin_pool_tab") || "teachers") === "teachers") {
+          await loadTeacherPool(1);
+        } else {
+          await loadStudentPool(1);
+        }
+      } catch (e) {
+        render(e.message);
+      }
+    });
+  }
+  const assignmentYearFilter = document.getElementById("assignmentYearFilter");
+  if (assignmentYearFilter) {
+    assignmentYearFilter.addEventListener("change", async function () {
+      try {
+        const year = getAssignmentYearValue();
+        if (!Number.isFinite(Number(year))) {
+          throw new Error("배정할 연도를 먼저 선택해 주세요.");
+        }
+        queryYearInput.value = String(year);
+        await refreshYearClasses();
+      } catch (e) {
+        render(e.message);
+      }
+    });
+  }
   document.getElementById("assignmentYearClassSelect").addEventListener("change", function () {
     const yearClassId = currentAssignmentYearClassId();
     if (yearClassId) {
@@ -1761,10 +1871,6 @@
       renderAssignmentManagement();
     }
   });
-  document.getElementById("assignmentTeacherKeyword").addEventListener("input", renderAssignmentManagement);
-  document.getElementById("assignmentStudentKeyword").addEventListener("input", renderAssignmentManagement);
-  document.getElementById("assignmentTeacherAssignedOnly").addEventListener("change", renderAssignmentManagement);
-  document.getElementById("assignmentStudentAssignedOnly").addEventListener("change", renderAssignmentManagement);
 
   document.getElementById("btnSubmitYearEditor").addEventListener("click", async function () {
     try {
@@ -1841,6 +1947,10 @@
 
   document.getElementById("btnSubmitTeacherEditor").addEventListener("click", async function () {
     try {
+      const year = getPoolYearValue();
+      if (!Number.isFinite(Number(year))) {
+        throw new Error("관리할 연도를 먼저 선택해 주세요.");
+      }
       const createPayload = {
         loginId: document.getElementById("teacherEditorLoginId").value.trim(),
         password: document.getElementById("teacherEditorPassword").value,
@@ -1861,12 +1971,12 @@
           active: createPayload.active,
           password: createPayload.password
         };
-        body = await api("/api/admin/teachers/" + teacherEditorState.teacherId, {
+        body = await api(`/api/admin/teachers/${teacherEditorState.teacherId}?year=${year}`, {
           method: "PATCH",
           body: JSON.stringify(updatePayload)
         });
       } else {
-        body = await api("/api/admin/teachers", {
+        body = await api(`/api/admin/teachers?year=${year}`, {
           method: "POST",
           body: JSON.stringify(createPayload)
         });
@@ -1881,9 +1991,13 @@
 
   document.getElementById("btnSubmitStudentEditor").addEventListener("click", async function () {
     try {
+      const year = getPoolYearValue();
+      if (!Number.isFinite(Number(year))) {
+        throw new Error("관리할 연도를 먼저 선택해 주세요.");
+      }
       const payload = {
         studentName: document.getElementById("studentEditorName").value.trim(),
-        schoolGrade: Number(document.getElementById("studentEditorSchoolGrade").value || 0) || null,
+        schoolGrade: String(document.getElementById("studentEditorSchoolGrade").value || "").trim() || null,
         contactNumber: document.getElementById("studentEditorContactNumber").value.trim(),
         birthDate: normalizeBirthDateInput(document.getElementById("studentEditorBirthDate").value),
         active: document.getElementById("studentEditorActive").checked
@@ -1891,12 +2005,12 @@
 
       let body;
       if (studentEditorState.mode === "edit" && studentEditorState.studentId) {
-        body = await api("/api/admin/students/" + studentEditorState.studentId, {
+        body = await api(`/api/admin/students/${studentEditorState.studentId}?year=${year}`, {
           method: "PATCH",
           body: JSON.stringify(payload)
         });
       } else {
-        body = await api("/api/admin/students", {
+        body = await api(`/api/admin/students?year=${year}`, {
           method: "POST",
           body: JSON.stringify(payload)
         });
@@ -2177,22 +2291,6 @@
     setAuditPreset(30);
   });
 
-  document.getElementById("btnLoadTeacherPool").addEventListener("click", async function () {
-    try {
-      await loadTeacherPool(1);
-    } catch (e) {
-      render(e.message);
-    }
-  });
-
-  document.getElementById("btnLoadStudentPool").addEventListener("click", async function () {
-    try {
-      await loadStudentPool(1);
-    } catch (e) {
-      render(e.message);
-    }
-  });
-
   document.getElementById("btnTeacherPrev").addEventListener("click", async function () {
     try {
       if (teacherPage > 1) {
@@ -2314,35 +2412,6 @@
         {
           label: "선택 학생 재배정",
           execute: () => runAndRefresh(() => postAssignStudents(yearClassId, studentIds))
-        }
-      );
-      selectedAssignmentStudentIds.clear();
-      renderAssignmentManagement();
-    } catch (e) {
-      render(e.message);
-    }
-  });
-
-  document.getElementById("btnAssignmentMoveStudents").addEventListener("click", async function () {
-    try {
-      const targetYearClassId = Number(document.getElementById("assignmentMoveTargetYearClassSelect").value);
-      const currentYearClassId = getTargetYearClassId();
-      const studentIds = Array.from(selectedAssignmentStudentIds.values());
-      ensureNonEmptyIds(studentIds, "선택된 studentIds");
-      if (!Number.isFinite(targetYearClassId)) {
-        throw new Error("이동할 반을 선택하세요.");
-      }
-      if (targetYearClassId === currentYearClassId) {
-        throw new Error("현재 반과 다른 반을 선택하세요.");
-      }
-      if (!confirmAction(`선택한 학생 ${studentIds.length}명을 다른 반으로 이동할까요?`)) return;
-      await runUndoAware(
-        {
-          execute: () => moveStudents(targetYearClassId, studentIds)
-        },
-        {
-          label: "선택 학생 이동 원복",
-          execute: () => runAndRefresh(() => moveStudents(currentYearClassId, studentIds))
         }
       );
       selectedAssignmentStudentIds.clear();

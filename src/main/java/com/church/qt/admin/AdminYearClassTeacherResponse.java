@@ -7,6 +7,7 @@ public record AdminYearClassTeacherResponse(
         String teacherName,
         String contactNumber,
         String role,
+        String assignmentRole,
         boolean active
 ) {
     public static AdminYearClassTeacherResponse from(YearClassTeacher yearClassTeacher) {
@@ -15,6 +16,7 @@ public record AdminYearClassTeacherResponse(
                 yearClassTeacher.getTeacher().getTeacherName(),
                 yearClassTeacher.getTeacher().getContactNumber(),
                 yearClassTeacher.getTeacher().getEffectiveRole().name(),
+                yearClassTeacher.getAssignmentRole(),
                 yearClassTeacher.getTeacher().getActive()
         );
     }

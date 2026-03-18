@@ -41,6 +41,9 @@ public class DevotionCheck extends BaseTimeEntity {
     @Column(name = "qt_checked", nullable = false)
     private Boolean qtChecked;
 
+    @Column(name = "attitude_checked", nullable = false)
+    private Boolean attitudeChecked;
+
     @Column(name = "note_checked", nullable = false)
     private Boolean noteChecked;
 
@@ -54,6 +57,7 @@ public class DevotionCheck extends BaseTimeEntity {
             Student student,
             LocalDate checkDate,
             Boolean qtChecked,
+            Boolean attitudeChecked,
             Boolean noteChecked,
             Teacher checkedByTeacher
     ) {
@@ -61,17 +65,19 @@ public class DevotionCheck extends BaseTimeEntity {
         this.student = student;
         this.checkDate = checkDate;
         this.qtChecked = qtChecked;
+        this.attitudeChecked = attitudeChecked;
         this.noteChecked = noteChecked;
         this.checkedByTeacher = checkedByTeacher;
     }
 
-    public void updateChecks(boolean qtChecked, boolean noteChecked, Teacher teacher) {
+    public void updateChecks(boolean qtChecked, boolean attitudeChecked, boolean noteChecked, Teacher teacher) {
         this.qtChecked = qtChecked;
+        this.attitudeChecked = attitudeChecked;
         this.noteChecked = noteChecked;
         this.checkedByTeacher = teacher;
     }
 
     public boolean isEmptyCheck() {
-        return !qtChecked && !noteChecked;
+        return !qtChecked && !attitudeChecked && !noteChecked;
     }
 }

@@ -9,6 +9,7 @@ public record StudentCalendarResponse(
         Integer year,
         Integer month,
         StudentCalendarSummaryResponse summary,
-        List<StudentCalendarDayResponse> days
+        List<StudentCalendarDayResponse> days,
+        List<StudentCalendarBirthdayResponse> birthdays
 ) {
 }
