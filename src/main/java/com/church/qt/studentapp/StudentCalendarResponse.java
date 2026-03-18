@@ -8,6 +8,7 @@ public record StudentCalendarResponse(
         String displayName,
         Integer year,
         Integer month,
+        boolean editable,
         StudentCalendarSummaryResponse summary,
         List<StudentCalendarDayResponse> days,
         List<StudentCalendarBirthdayResponse> birthdays

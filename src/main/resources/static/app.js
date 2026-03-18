@@ -14,7 +14,6 @@
   let cachedStudentCurrentYear = DEFAULT_STUDENT_YEAR;
   let pendingRequestCount = 0;
   const TEACHER_LOGIN_ID_KEY = "qt_teacher_last_login_id";
-  const TEACHER_STUDENT_KEYWORD_KEY = "qt_teacher_students_keyword";
   const TEACHER_STUDENT_SORT_KEY = "qt_teacher_students_sort";
 
   const weekdayNames = ["일", "월", "화", "수", "목", "금", "토"];
@@ -126,6 +125,10 @@
   function navigate(path) {
     const current = `${window.location.pathname}${window.location.search}`;
     if (current === path) return;
+    if (path === "/app/admin") {
+      window.location.href = path;
+      return;
+    }
     history.pushState({}, "", path);
     renderRoute();
   }
@@ -341,7 +344,7 @@
             <div class="birthday-item">
               <div class="birthday-item-head">
                 <span class="birthday-date">${formatBirthdayDate(item.date)}</span>
-                <span class="birthday-type ${item.type === "teacher" ? "teacher" : "student"}">${item.type === "teacher" ? "교사" : "학생"}</span>
+                <span class="birthday-type ${item.type === "teacher" ? "teacher" : "student"}">${escapeHtml(getBirthdayTypeLabel(item))}</span>
               </div>
               <div class="birthday-name">🎂 ${escapeHtml(item.name || "")}</div>
             </div>
@@ -356,6 +359,17 @@
     const parts = dateText.split("-").map(Number);
     if (parts.length !== 3 || parts.some(Number.isNaN)) return dateText;
     return `${parts[1]}월 ${parts[2]}일`;
+  }
+
+  function getBirthdayTypeLabel(item) {
+    if (!item || item.type !== "teacher") {
+      return "학생";
+    }
+    const role = String(item.role || "").toUpperCase();
+    if (role === "PASTOR") return "전도사";
+    if (role === "DIRECTOR") return "부장";
+    if (role === "ADMIN") return "관리자";
+    return "교사";
   }
 
   function focusTodayCell(containerSelector) {
@@ -409,7 +423,7 @@
       document.getElementById("studentPickList").innerHTML = filtered.map(item => `
         <button class="item-card simple-choice student-pick" data-student-id="${item.studentId}">
           <div class="item-head">
-            <span class="item-title">${escapeHtml(item.displayName || item.studentName)}</span>
+            <span class="item-title">${escapeHtml(item.studentName || item.displayName)}</span>
             <span class="simple-meta">${escapeHtml(item.schoolGrade || "-")}학년</span>
           </div>
         </button>
@@ -464,9 +478,9 @@
           <div class="item-title">${escapeHtml(formatStudentHeading(body.displayName, body.studentName, body.schoolGrade))}</div>
         </div>
         <div class="summary">
-          <div class="box"><div class="label">🍇 QT 개수</div><div class="value">${body.summary.qtCount}</div></div>
-          <div class="box"><div class="label">🍐 노트 개수</div><div class="value">${body.summary.noteCount}</div></div>
-          <div class="box"><div class="label">🫒 태도 개수</div><div class="value">${body.summary.attitudeCount}</div></div>
+          <div class="box"><div class="label">🍇 QT(포도)</div><div class="value">${body.summary.qtCount}</div></div>
+          <div class="box"><div class="label">🍐 노트(무화과)</div><div class="value">${body.summary.noteCount}</div></div>
+          <div class="box"><div class="label">🫒 태도(올리브)</div><div class="value">${body.summary.attitudeCount}</div></div>
           <div class="box total-box"><div class="label">총 개수</div><div class="value">${body.summary.totalCount}</div></div>
         </div>
         <div class="calendar-nav">
@@ -593,13 +607,11 @@
       history.replaceState({}, "", `/app/teacher/students?year=${year}`);
     }
 
-    const savedKeyword = localStorage.getItem(TEACHER_STUDENT_KEYWORD_KEY) || "";
     const savedSort = localStorage.getItem(TEACHER_STUDENT_SORT_KEY) || "grade_name";
 
     appRoot.innerHTML = `
       <section class="panel">
         <div class="row">
-          <label>이름 검색 <input id="teacherStudentKeyword" type="text" value="${escapeHtml(savedKeyword)}" placeholder="학생 이름 검색" /></label>
           <label>정렬
             <select id="teacherStudentSort">
               <option value="grade_name">학년/이름</option>
@@ -607,7 +619,7 @@
               <option value="total_asc">총 개수 낮은순</option>
             </select>
           </label>
-          <button id="btnTeacherLogout" class="ghost">로그아웃</button>
+          <button id="btnTeacherLogout" class="ghost teacher-toolbar-logout">로그아웃</button>
         </div>
         <div id="teacherStudentList" class="list" style="margin-top:10px;"></div>
       </section>
@@ -617,25 +629,16 @@
 
     document.getElementById("btnTeacherLogout").addEventListener("click", teacherLogout);
     function renderTeacherStudentList() {
-      const rawKeyword = String(document.getElementById("teacherStudentKeyword").value || "").trim();
-      const keyword = rawKeyword.toLowerCase();
       const sortKey = String(document.getElementById("teacherStudentSort").value || "grade_name");
-      localStorage.setItem(TEACHER_STUDENT_KEYWORD_KEY, rawKeyword);
       localStorage.setItem(TEACHER_STUDENT_SORT_KEY, sortKey);
-      const filtered = students.filter(item => {
-        if (!keyword) return true;
-        const name = String(item.displayName || item.studentName || "").toLowerCase();
-        return name.includes(keyword);
-      });
-
-      if (filtered.length === 0) {
+      if (students.length === 0) {
         document.getElementById("teacherStudentList").innerHTML = `
-          <div class="empty-state">검색 결과가 없습니다.</div>
+          <div class="empty-state">표시할 학생이 없습니다.</div>
         `;
         return;
       }
 
-      const sortedRows = filtered.slice().sort((a, b) => {
+      const sortedRows = students.slice().sort((a, b) => {
         if (sortKey === "total_desc") return b.totalCount - a.totalCount;
         if (sortKey === "total_asc") return a.totalCount - b.totalCount;
         const gradeA = Number.isFinite(Number(a.schoolGrade)) ? Number(a.schoolGrade) : -1;
@@ -648,7 +651,7 @@
       document.getElementById("teacherStudentList").innerHTML = sortedRows.map(item => `
         <button class="item-card teacher-student-card" data-student-id="${item.studentId}">
           <div class="item-head">
-            <span class="item-title">${escapeHtml(item.displayName || item.studentName)}</span>
+            <span class="item-title">${escapeHtml(item.studentName || item.displayName)}</span>
           </div>
           <div class="item-sub">${escapeHtml(item.schoolGrade || "-")}학년</div>
           <div class="teacher-stats">
@@ -668,7 +671,6 @@
       });
     }
 
-    document.getElementById("teacherStudentKeyword").addEventListener("input", renderTeacherStudentList);
     document.getElementById("teacherStudentSort").addEventListener("change", renderTeacherStudentList);
     renderTeacherStudentList();
   }
@@ -744,6 +746,9 @@
     }
 
     function syncPanelFromDate(dateText) {
+      if (!body.editable) {
+        return;
+      }
       if (selectedDate && selectedDate !== dateText && !confirmDiscardIfNeeded()) {
         return;
       }
@@ -781,9 +786,11 @@
 
     function renderCalendarOnly() {
       document.getElementById("calendarWrap").innerHTML = renderCalendarGrid(body.days, selectedDate);
-      document.querySelectorAll("#calendarWrap .day-cell.selectable").forEach(btn => {
-        btn.addEventListener("click", () => syncPanelFromDate(btn.dataset.date));
-      });
+      if (body.editable) {
+        document.querySelectorAll("#calendarWrap .day-cell.selectable").forEach(btn => {
+          btn.addEventListener("click", () => syncPanelFromDate(btn.dataset.date));
+        });
+      }
       if (!selectedDate) {
         focusTodayCell("#calendarWrap");
       }
@@ -801,9 +808,9 @@
           </div>
         </div>
         <div class="summary">
-          <div class="box"><div class="label">🍇 QT 개수</div><div id="summaryQtCount" class="value">${body.summary.qtCount}</div></div>
-          <div class="box"><div class="label">🍐 노트 개수</div><div id="summaryNoteCount" class="value">${body.summary.noteCount}</div></div>
-          <div class="box"><div class="label">🫒 태도 개수</div><div id="summaryAttitudeCount" class="value">${body.summary.attitudeCount}</div></div>
+          <div class="box"><div class="label">🍇 QT(포도)</div><div id="summaryQtCount" class="value">${body.summary.qtCount}</div></div>
+          <div class="box"><div class="label">🍐 노트(무화과)</div><div id="summaryNoteCount" class="value">${body.summary.noteCount}</div></div>
+          <div class="box"><div class="label">🫒 태도(올리브)</div><div id="summaryAttitudeCount" class="value">${body.summary.attitudeCount}</div></div>
           <div class="box total-box"><div class="label">총 개수</div><div id="summaryTotalCount" class="value">${body.summary.totalCount}</div></div>
         </div>
         <div class="calendar-nav">
@@ -813,9 +820,10 @@
           <button id="btnNextMonth" class="ghost">다음달</button>
         </div>
         <div id="calendarWrap"></div>
+        ${body.editable ? "" : '<div class="legend">이 연도에는 편성되지 않아 조회만 가능합니다.</div>'}
         ${renderBirthdayList(body.birthdays)}
 
-        <div id="checkPanel" class="check-panel check-panel-fixed hidden">
+        <div id="checkPanel" class="check-panel check-panel-fixed hidden${body.editable ? "" : " disabled"}">
           <div class="quick-row">
             <button id="btnMarkAll" class="ghost" type="button">전체 체크</button>
             <button id="btnClearAll" class="ghost" type="button">전체 해제</button>
@@ -884,7 +892,7 @@
     document.getElementById("toggleNote").addEventListener("change", updateSaveButtonState);
 
     const todayIso = new Date().toISOString().slice(0, 10);
-    if ((body.days || []).some(day => day.date === todayIso)) {
+    if (body.editable && (body.days || []).some(day => day.date === todayIso)) {
       syncPanelFromDate(todayIso);
     }
     updateSaveButtonState();

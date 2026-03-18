@@ -75,7 +75,6 @@
   const savedActiveTab = localStorage.getItem("qt_admin_active_tab") || "dashboard";
   const savedYearClassTab = localStorage.getItem("qt_admin_yearclass_tab") || "years";
   const savedPoolTab = localStorage.getItem("qt_admin_pool_tab") || "teachers";
-  const savedAssignmentTab = localStorage.getItem("qt_admin_assignment_tab") || "teachers";
   if (savedAuditActionType) document.getElementById("auditActionType").value = savedAuditActionType;
   if (savedAuditKeyword) document.getElementById("auditKeyword").value = savedAuditKeyword;
   if (savedAuditFromAt) document.getElementById("auditFromAt").value = savedAuditFromAt;
@@ -156,6 +155,7 @@
     });
     localStorage.setItem("qt_admin_active_tab", safeTab);
     if (safeTab === "assignment" && adminToken) {
+      setAssignmentTab("teachers");
       if (!assignmentTeacherItems.length || !assignmentStudentItems.length) {
         loadAssignmentPools().catch(function (e) {
           render(e.message);
@@ -264,7 +264,7 @@
   setActiveTab(savedActiveTab);
   setYearClassTab(savedYearClassTab);
   setPoolTab(savedPoolTab);
-  setAssignmentTab(savedAssignmentTab);
+  setAssignmentTab("teachers");
   setAdminAuthenticated(false);
 
   function render(data) {
@@ -664,6 +664,16 @@
       return;
     }
 
+    const teacherAssignmentMap = new Map();
+    const studentAssignmentMap = new Map();
+    cachedYearClasses.forEach(item => {
+      (item.teachers || []).forEach(teacher => {
+        teacherAssignmentMap.set(teacher.teacherId, item.className || "-");
+      });
+      (item.students || []).forEach(student => {
+        studentAssignmentMap.set(student.studentId, item.className || "-");
+      });
+    });
     const assignedTeacherIds = new Set((yearClass.teachers || []).map(item => item.teacherId));
     const assignedStudentIds = new Set((yearClass.students || []).map(item => item.studentId));
     const assignedTeacherMap = new Map((yearClass.teachers || []).map(item => [item.teacherId, item]));
@@ -702,6 +712,7 @@
             <th class="selection-cell">선택</th>
             <th>No</th>
             <th>이름</th>
+            <th>소속 반</th>
             <th>반 역할</th>
             <th>상태</th>
           </tr>
@@ -714,6 +725,7 @@
               </td>
               <td data-label="No">${index + 1}</td>
               <td data-label="이름">${escapeHtml(item.teacherName || "-")}</td>
+              <td data-label="소속 반">${escapeHtml(teacherAssignmentMap.get(item.teacherId) || "-")}</td>
               <td data-label="반 역할">
                 ${assignedTeacherIds.has(item.teacherId)
                   ? `<select class="assignmentTeacherRoleSelect" data-teacher-id="${item.teacherId}">
@@ -721,7 +733,7 @@
                     </select>`
                   : '<span class="simple-meta">-</span>'}
               </td>
-              <td data-label="상태"><span class="assignment-status-pill ${assignedTeacherIds.has(item.teacherId) ? "assigned" : "unassigned"}">${assignedTeacherIds.has(item.teacherId) ? "배정됨" : "미배정"}</span></td>
+              <td data-label="상태"><span class="assignment-status-pill ${teacherAssignmentMap.has(item.teacherId) ? "assigned" : "unassigned"}">${teacherAssignmentMap.has(item.teacherId) ? "배정됨" : "미배정"}</span></td>
             </tr>
           `).join("")}
         </tbody>
@@ -736,6 +748,7 @@
             <th>No</th>
             <th>이름</th>
             <th>학년</th>
+            <th>소속 반</th>
             <th>상태</th>
           </tr>
         </thead>
@@ -748,7 +761,8 @@
               <td data-label="No">${index + 1}</td>
               <td data-label="이름">${escapeHtml(item.studentName || "-")}</td>
               <td data-label="학년">${escapeHtml(formatSchoolGrade(item.schoolGrade))}</td>
-              <td data-label="상태"><span class="assignment-status-pill ${assignedStudentIds.has(item.studentId) ? "assigned" : "unassigned"}">${assignedStudentIds.has(item.studentId) ? "배정됨" : "미배정"}</span></td>
+              <td data-label="소속 반">${escapeHtml(studentAssignmentMap.get(item.studentId) || "-")}</td>
+              <td data-label="상태"><span class="assignment-status-pill ${studentAssignmentMap.has(item.studentId) ? "assigned" : "unassigned"}">${studentAssignmentMap.has(item.studentId) ? "배정됨" : "미배정"}</span></td>
             </tr>
           `).join("")}
         </tbody>
@@ -818,8 +832,6 @@
             <th>No</th>
             <th>연도</th>
             <th>활성</th>
-            <th>수정일시</th>
-            <th>생성일시</th>
             <th>관리</th>
           </tr>
         </thead>
@@ -829,8 +841,6 @@
               <td data-label="No">${index + 1}</td>
               <td data-label="연도">${escapeHtml(year.yearValue)}년</td>
               <td data-label="활성"><span class="badge-soft">${year.active ? "활성" : "비활성"}</span></td>
-              <td data-label="수정일시">${escapeHtml(formatDateTime(year.updatedAt))}</td>
-              <td data-label="생성일시">${escapeHtml(formatDateTime(year.createdAt))}</td>
               <td data-label="관리">
                 <div class="row-actions">
                   <button class="ghost btnEditYearRow" type="button" data-year-id="${year.id}">수정</button>
@@ -882,10 +892,7 @@
             <th>No</th>
             <th>연도</th>
             <th>반 이름</th>
-            <th>정렬</th>
             <th>상태</th>
-            <th>수정일시</th>
-            <th>생성일시</th>
             <th>관리</th>
           </tr>
         </thead>
@@ -895,10 +902,7 @@
               <td data-label="No">${index + 1}</td>
               <td data-label="연도">${escapeHtml(item.yearValue)}년</td>
               <td data-label="반 이름">${escapeHtml(item.className)}</td>
-              <td data-label="정렬">${escapeHtml(item.sortOrder)}</td>
               <td data-label="상태"><span class="badge-soft">${item.active ? "활성" : "비활성"}</span></td>
-              <td data-label="수정일시">${escapeHtml(formatDateTime(item.updatedAt))}</td>
-              <td data-label="생성일시">${escapeHtml(formatDateTime(item.createdAt))}</td>
               <td data-label="관리">
                 <div class="row-actions">
                   <button class="ghost btnEditClassRow" type="button" data-year-class-id="${item.yearClassId}">수정</button>
@@ -1353,8 +1357,18 @@
     }
 
     dashboardClassBoard.innerHTML = filtered.map(item => {
-      const teachers = Array.isArray(item.teachers) ? item.teachers : [];
-      const students = Array.isArray(item.students) ? item.students : [];
+      const teachers = (Array.isArray(item.teachers) ? item.teachers : []).slice().sort((a, b) => {
+        const aHomeroom = String(a.assignmentRole || "").toUpperCase() === "HOMEROOM" ? 0 : 1;
+        const bHomeroom = String(b.assignmentRole || "").toUpperCase() === "HOMEROOM" ? 0 : 1;
+        if (aHomeroom !== bHomeroom) return aHomeroom - bHomeroom;
+        return String(a.teacherName || "").localeCompare(String(b.teacherName || ""), "ko");
+      });
+      const students = (Array.isArray(item.students) ? item.students : []).slice().sort((a, b) => {
+        const gradeA = Number.isFinite(Number(a.schoolGrade)) ? Number(a.schoolGrade) : -1;
+        const gradeB = Number.isFinite(Number(b.schoolGrade)) ? Number(b.schoolGrade) : -1;
+        if (gradeA !== gradeB) return gradeB - gradeA;
+        return String(a.studentName || "").localeCompare(String(b.studentName || ""), "ko");
+      });
       const ranking = students
         .slice()
         .sort((a, b) => (b.totalCount || 0) - (a.totalCount || 0) || (b.qtCount || 0) - (a.qtCount || 0))
@@ -1365,7 +1379,7 @@
           <div class="dashboard-class-head">
             <div>
               <h3 class="dashboard-class-title">${escapeHtml(item.className)}</h3>
-              <p class="dashboard-class-meta">${escapeHtml(item.yearValue)}년 · 담당 : ${teachers.map(t => `${t.teacherName}${String(t.assignmentRole || "").toUpperCase() === "HOMEROOM" ? " (담임)" : ""}`).join(", ") || "미배정"} · 학생 ${students.length}명</p>
+              <p class="dashboard-class-meta">담당 : ${teachers.map(t => `${t.teacherName}${String(t.assignmentRole || "").toUpperCase() === "HOMEROOM" ? " (담임)" : ""}`).join(", ") || "미배정"} · 학생 ${students.length}명</p>
             </div>
           </div>
 
@@ -1373,8 +1387,8 @@
             ${students.length ? students.map(student => `
               <button class="student-link-card btnOpenStudentCalendar" type="button" data-student-id="${student.studentId}" data-year-value="${item.yearValue}">
                 <div class="student-link-main">
-                  <strong>${escapeHtml(student.studentName)}${student.schoolGrade ? ` (${escapeHtml(student.schoolGrade)}학년)` : ""}</strong>
-                  <span class="badge-soft">🍇 QT ${student.qtCount || 0} · 🍐 노트 ${student.noteCount || 0} · 🫒 태도 ${student.attitudeCount || 0}</span>
+                  <strong class="student-link-name">${escapeHtml(student.studentName)}${student.schoolGrade ? ` (${escapeHtml(student.schoolGrade)}학년)` : ""}</strong>
+                  <span class="badge-soft student-link-fruits">🍇 QT ${student.qtCount || 0} · 🍐 노트 ${student.noteCount || 0} · 🫒 태도 ${student.attitudeCount || 0}</span>
                 </div>
                 <div class="student-link-sub">총 ${student.totalCount || 0}개 · 누르면 체크 달력 열기</div>
               </button>
@@ -1767,7 +1781,7 @@
         body = text;
       }
       if (!response.ok) throw new Error(extractErrorMessage(body, "로그인에 실패했습니다."));
-      if (!body || body.role !== "ADMIN") {
+      if (!body || !["ADMIN", "PASTOR", "DIRECTOR"].includes(String(body.role || "").toUpperCase())) {
         throw new Error("관리자 권한이 없습니다.");
       }
       persistAdminToken(body.accessToken || "");

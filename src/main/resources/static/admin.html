@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>QT 관리자 페이지</title>
-  <link rel="stylesheet" href="/admin.css?v=20260318-assign2" />
+  <link rel="stylesheet" href="/admin.css?v=20260318-adminfont2" />
 </head>
 <body>
 <main class="wrap">
@@ -48,7 +48,7 @@
           <span id="dashboardYearBadge" class="badge-soft">활성 연도 : -</span>
         </div>
       </div>
-      <div id="statusLine" class="status">대기 중</div>
+      <div id="statusLine" class="status hidden">대기 중</div>
       <section class="dashboard-ranking-panel">
         <div class="manager-head">
           <div>
@@ -95,17 +95,17 @@
         </section>
 
         <section class="manager-panel yearclass-panel" data-yearclass-panel="classes">
+          <div class="toolbar-row">
+            <label>연도 선택
+              <select id="classManagementYearFilter"></select>
+            </label>
+          </div>
           <div class="manager-head">
             <div>
               <h3>반 목록</h3>
               <p class="section-copy">현재 등록된 연도를 선택한 뒤 반을 추가하거나 수정합니다.</p>
             </div>
             <button id="btnOpenCreateClass" type="button">반 추가</button>
-          </div>
-          <div class="toolbar-row">
-            <label>연도 선택
-              <select id="classManagementYearFilter"></select>
-            </label>
           </div>
           <div id="classManagementList" class="table-card"></div>
         </section>
@@ -468,6 +468,6 @@
   </section>
 </main>
 
-<script src="/admin.js?v=20260318-assign2"></script>
+<script src="/admin.js?v=20260318-adminfont2"></script>
 </body>
 </html>

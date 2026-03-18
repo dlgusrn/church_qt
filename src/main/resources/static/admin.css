@@ -11,6 +11,55 @@
   --ghost: #ece3d7;
 }
 
+@media (min-width: 901px) {
+  body {
+    font-size: 16px;
+  }
+
+  h1 {
+    font-size: 34px;
+  }
+
+  h2 {
+    font-size: 20px;
+  }
+
+  .section-copy,
+  label,
+  input,
+  textarea,
+  select,
+  button,
+  .manager-table td,
+  .overview-card p,
+  .dashboard-class-meta,
+  .ranking-row,
+  .student-link-sub {
+    font-size: 14px;
+  }
+
+  .manager-head h3,
+  .dashboard-class-title,
+  .ranking-title {
+    font-size: 19px;
+  }
+
+  .manager-table th,
+  .badge-soft,
+  .status,
+  .chip,
+  .overview-card h3 {
+    font-size: 13px;
+  }
+
+  #teacherManagementList .manager-table th,
+  #teacherManagementList .manager-table td,
+  #dashboardOverallRanking .manager-table th,
+  #dashboardOverallRanking .manager-table td {
+    font-size: 13px;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -368,20 +417,20 @@ h1 {
 
 #teacherManagementList .manager-table th,
 #teacherManagementList .manager-table td {
-  padding: 7px 6px;
-  font-size: 11px;
+  padding: 9px 8px;
+  font-size: 12px;
 }
 
 #teacherManagementList .badge-soft {
   padding: 2px 6px;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 #teacherManagementList .btnEditTeacherRow {
-  min-height: 30px;
-  padding: 6px 8px;
+  min-height: 34px;
+  padding: 7px 10px;
   border-radius: 9px;
-  font-size: 11px;
+  font-size: 12px;
   white-space: nowrap;
 }
 
@@ -544,6 +593,47 @@ h1 {
   display: block;
 }
 
+@media (min-width: 901px) {
+  body {
+    font-size: 15px;
+  }
+
+  h1 {
+    font-size: 31px;
+  }
+
+  h2 {
+    font-size: 18px;
+  }
+
+  .section-copy,
+  .manager-table td,
+  button,
+  input,
+  textarea,
+  select {
+    font-size: 13px;
+  }
+
+  .manager-head h3,
+  .dashboard-class-title,
+  .ranking-title {
+    font-size: 18px;
+  }
+
+  .manager-table th,
+  .badge-soft,
+  .status,
+  .chip {
+    font-size: 12px;
+  }
+
+  #teacherManagementList .manager-table th,
+  #teacherManagementList .manager-table td {
+    font-size: 12px;
+  }
+}
+
 .assignment-target-field {
   margin: 0;
 }
@@ -667,6 +757,22 @@ h1 {
   justify-content: space-between;
   gap: 8px;
   align-items: center;
+  flex-wrap: nowrap;
+}
+
+.student-link-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.student-link-fruits {
+  flex: 0 0 auto;
+  margin-left: auto;
+  white-space: nowrap;
+  font-size: 10px;
 }
 
 .student-link-sub {
@@ -977,8 +1083,16 @@ pre {
   }
 
   #ops-pool .manager-head {
-    flex-direction: row;
-    align-items: center;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #ops-pool .manager-head .row-actions {
+    width: 100%;
+  }
+
+  #ops-pool .manager-head .row-actions button {
+    width: 100%;
   }
 
   #teacherEditorPanel .manager-head,
@@ -1029,8 +1143,33 @@ pre {
     font-size: 11px;
   }
 
+  #teacherManagementList .manager-table th,
+  #teacherManagementList .manager-table td {
+    padding: 8px 6px;
+    font-size: 11px;
+  }
+
+  #teacherManagementList .btnEditTeacherRow {
+    min-height: 30px;
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+
+  #teacherManagementList .manager-table th:nth-child(1),
+  #teacherManagementList .manager-table td:nth-child(1),
+  #teacherManagementList .manager-table th:nth-child(3),
+  #teacherManagementList .manager-table td:nth-child(3),
+  #teacherManagementList .manager-table th:nth-child(4),
+  #teacherManagementList .manager-table td:nth-child(4),
+  #teacherManagementList .manager-table th:nth-child(5),
+  #teacherManagementList .manager-table td:nth-child(5),
+  #teacherManagementList .manager-table th:nth-child(6),
+  #teacherManagementList .manager-table td:nth-child(6) {
+    white-space: normal;
+  }
+
   .student-link-main {
-    align-items: flex-start;
-    flex-direction: column;
+    align-items: center;
+    flex-direction: row;
   }
 }

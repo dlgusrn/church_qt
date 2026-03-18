@@ -1362,7 +1362,8 @@ public class AdminService {
             throw new IllegalArgumentException("비활성화된 교사입니다.");
         }
 
-        if (teacher.getEffectiveRole() != TeacherRole.ADMIN) {
+        TeacherRole role = teacher.getEffectiveRole();
+        if (role != TeacherRole.ADMIN && role != TeacherRole.PASTOR && role != TeacherRole.DIRECTOR) {
             throw new IllegalArgumentException("관리자 권한이 없습니다.");
         }
         return teacher;

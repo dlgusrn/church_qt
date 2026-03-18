@@ -209,6 +209,10 @@ body[data-app-mode="teacher"] .row {
   gap: 6px;
 }
 
+body[data-app-mode="teacher"] .teacher-toolbar-logout {
+  margin-left: auto;
+}
+
 body[data-app-mode="teacher"] .summary {
   gap: 6px;
   margin-top: 6px;

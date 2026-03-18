@@ -52,25 +52,24 @@ public class StudentAppService {
     @Transactional(readOnly = true)
     public StudentCalendarResponse getStudentCalendar(Long studentId, Integer yearValue, Integer month) {
         Year year = yearRepository.findByYearValue(yearValue)
-                .orElseThrow(() -> new IllegalArgumentException("해당 연도가 존재하지 않습니다."));
-
-        if (!yearClassStudentRepository.existsByYearIdAndStudentId(year.getId(), studentId)) {
-            throw new IllegalArgumentException("해당 학생은 선택한 연도에 편성되어 있지 않습니다.");
-        }
+                .orElse(null);
+        Long yearId = year == null ? null : year.getId();
 
         Student student = studentRepository.findById(studentId)
                 .orElseThrow(() -> new IllegalArgumentException("학생이 존재하지 않습니다."));
-        YearStudent yearStudent = yearStudentRepository.findByYearIdAndStudentId(year.getId(), studentId)
-                .orElseThrow(() -> new IllegalArgumentException("해당 학생은 선택한 연도에 속해 있지 않습니다."));
+        boolean editable = yearId != null && yearClassStudentRepository.existsByYearIdAndStudentId(yearId, studentId);
+        YearStudent yearStudent = yearId == null ? null : yearStudentRepository.findByYearIdAndStudentId(yearId, studentId)
+                .orElse(null);
 
         YearMonth yearMonth = YearMonth.of(yearValue, month);
         LocalDate startDate = yearMonth.atDay(1);
         LocalDate endDate = yearMonth.atEndOfMonth();
         LocalDate today = LocalDate.now();
 
-        List<DevotionCheck> checks = devotionCheckRepository
-                .findByYearIdAndStudentIdAndCheckDateBetweenOrderByCheckDateAsc(
-                        year.getId(),
+        List<DevotionCheck> checks = yearId == null
+                ? List.of()
+                : devotionCheckRepository.findByYearIdAndStudentIdAndCheckDateBetweenOrderByCheckDateAsc(
+                        yearId,
                         studentId,
                         startDate,
                         endDate
@@ -79,7 +78,7 @@ public class StudentAppService {
         Map<LocalDate, DevotionCheck> checkMap = checks.stream()
                 .collect(Collectors.toMap(DevotionCheck::getCheckDate, Function.identity()));
 
-        List<StudentCalendarBirthdayResponse> birthdays = buildBirthdayList(year.getId(), yearMonth);
+        List<StudentCalendarBirthdayResponse> birthdays = buildBirthdayList(yearId, yearMonth);
         Map<String, List<StudentCalendarBirthdayResponse>> birthdayMap = birthdays.stream()
                 .collect(Collectors.groupingBy(StudentCalendarBirthdayResponse::date));
 
@@ -102,16 +101,17 @@ public class StudentAppService {
                 })
                 .toList();
 
-        long qtCount = devotionCheckRepository.countByYearIdAndStudentIdAndQtCheckedTrue(year.getId(), studentId);
-        long attitudeCount = devotionCheckRepository.countByYearIdAndStudentIdAndAttitudeCheckedTrue(year.getId(), studentId);
-        long noteCount = devotionCheckRepository.countByYearIdAndStudentIdAndNoteCheckedTrue(year.getId(), studentId);
+        long qtCount = yearId == null ? 0L : devotionCheckRepository.countByYearIdAndStudentIdAndQtCheckedTrue(yearId, studentId);
+        long attitudeCount = yearId == null ? 0L : devotionCheckRepository.countByYearIdAndStudentIdAndAttitudeCheckedTrue(yearId, studentId);
+        long noteCount = yearId == null ? 0L : devotionCheckRepository.countByYearIdAndStudentIdAndNoteCheckedTrue(yearId, studentId);
 
         return new StudentCalendarResponse(
                 student.getId(),
                 student.getStudentName(),
-                yearStudent.buildDisplayName(),
+                yearStudent == null ? student.getStudentName() : yearStudent.buildDisplayName(),
                 yearValue,
                 month,
+                editable,
                 new StudentCalendarSummaryResponse(
                         qtCount,
                         attitudeCount,
@@ -125,20 +125,28 @@ public class StudentAppService {
 
     private List<StudentCalendarBirthdayResponse> buildBirthdayList(Long yearId, YearMonth yearMonth) {
         List<StudentCalendarBirthdayResponse> teacherBirthdays = teacherRepository.findByActiveTrueOrderByTeacherNameAscIdAsc().stream()
-                .map(teacher -> toBirthdayResponse(teacher.getBirthDate(), yearMonth, "teacher", teacher.getTeacherName()))
-                .filter(response -> response != null)
-                .toList();
-
-        List<StudentCalendarBirthdayResponse> studentBirthdays = yearStudentRepository
-                .findActiveByYearIdOrderByGradeDescNameAsc(yearId).stream()
-                .map(yearStudent -> toBirthdayResponse(
-                        yearStudent.getStudent().getBirthDate(),
+                .map(teacher -> toBirthdayResponse(
+                        teacher.getBirthDate(),
                         yearMonth,
-                        "student",
-                        yearStudent.getStudent().getStudentName()
+                        "teacher",
+                        teacher.getTeacherName(),
+                        teacher.getEffectiveRole().name()
                 ))
                 .filter(response -> response != null)
                 .toList();
+
+        List<StudentCalendarBirthdayResponse> studentBirthdays = yearId == null
+                ? List.of()
+                : yearStudentRepository.findActiveByYearIdOrderByGradeDescNameAsc(yearId).stream()
+                        .map(yearStudent -> toBirthdayResponse(
+                                yearStudent.getStudent().getBirthDate(),
+                                yearMonth,
+                                "student",
+                                yearStudent.getStudent().getStudentName(),
+                                null
+                        ))
+                        .filter(response -> response != null)
+                        .toList();
 
         return java.util.stream.Stream.concat(teacherBirthdays.stream(), studentBirthdays.stream())
                 .sorted(Comparator
@@ -148,7 +156,7 @@ public class StudentAppService {
                 .toList();
     }
 
-    private StudentCalendarBirthdayResponse toBirthdayResponse(String birthDate, YearMonth yearMonth, String type, String name) {
+    private StudentCalendarBirthdayResponse toBirthdayResponse(String birthDate, YearMonth yearMonth, String type, String name, String role) {
         String monthDay = extractMonthDay(birthDate);
         if (monthDay == null) {
             return null;
@@ -161,7 +169,7 @@ public class StudentAppService {
         }
 
         LocalDate date = yearMonth.atDay(day);
-        return new StudentCalendarBirthdayResponse(date.toString(), type, name);
+        return new StudentCalendarBirthdayResponse(date.toString(), type, name, role);
     }
 
     private String extractMonthDay(String birthDate) {
