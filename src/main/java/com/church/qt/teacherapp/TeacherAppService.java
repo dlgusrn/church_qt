@@ -233,6 +233,6 @@ public class TeacherAppService {
     }
 
     private boolean hasGlobalCheckAccess(Teacher teacher) {
-        return teacher.getEffectiveRole() == TeacherRole.ADMIN || teacher.canCheckAllStudents();
+        return teacher.canCheckAllStudents();
     }
 }

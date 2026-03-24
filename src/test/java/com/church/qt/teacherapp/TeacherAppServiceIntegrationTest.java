@@ -112,6 +112,27 @@ class TeacherAppServiceIntegrationTest {
     }
 
     @Test
+    @DisplayName("ADMIN 역할만으로는 연도 전체 학생 목록을 조회하지 않는다")
+    void getStudents_withAdminRoleOnly_returnsAssignedStudentsOnly() {
+        Teacher teacher = saveTeacher("admin_teacher_only", TeacherRole.ADMIN, true, false);
+        Year year = saveYear(2030);
+        saveYearTeacher(year, teacher);
+        YearClass yearClass = saveYearClass(year, "충성반");
+
+        Student assignedStudent = saveStudent("관리자담당학생");
+        Student unassignedStudent = saveStudent("관리자다른학생");
+        saveYearStudent(year, assignedStudent, "4");
+        saveYearStudent(year, unassignedStudent, "5");
+        saveYearClassStudent(year, yearClass, assignedStudent);
+        saveYearClassTeacher(yearClass, teacher);
+
+        List<TeacherStudentListResponse> responses = teacherAppService.getStudents(teacher.getId(), year.getYearValue());
+
+        assertEquals(1, responses.size());
+        assertEquals("관리자담당학생", responses.get(0).studentName());
+    }
+
+    @Test
     @DisplayName("전체 학생 체크 권한이 있는 교사는 담당 반이 아니어도 체크할 수 있다")
     void updateCheck_withGlobalCheckAccess_allowsUnassignedStudent() {
         Teacher teacher = saveTeacher("check_all_teacher", TeacherRole.TEACHER, true, true);
