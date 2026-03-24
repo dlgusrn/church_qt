@@ -13,6 +13,7 @@ public record AdminTeacherResponse(
         String contactNumber,
         String birthDate,
         String role,
+        boolean canCheckAllStudents,
         boolean active,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
@@ -27,6 +28,7 @@ public record AdminTeacherResponse(
                 yearTeacher.getTeacher().getContactNumber(),
                 yearTeacher.getTeacher().getBirthDate(),
                 yearTeacher.getTeacher().getEffectiveRole().name(),
+                yearTeacher.getTeacher().canCheckAllStudents(),
                 yearTeacher.getActive(),
                 yearTeacher.getCreatedAt(),
                 yearTeacher.getUpdatedAt()

@@ -1,6 +1,7 @@
 package com.church.qt.domain.yearstudent;
 
 import com.church.qt.domain.student.Student;
+import com.church.qt.teacherapp.TeacherStudentListResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -66,6 +67,27 @@ public interface YearStudentRepository extends JpaRepository<YearStudent, Long> 
             @Param("yearIds") List<Long> yearIds,
             @Param("studentIds") List<Long> studentIds
     );
+
+    @Query("""
+        select new com.church.qt.teacherapp.TeacherStudentListResponse(
+            s.id,
+            s.studentName,
+            ys.schoolGrade,
+            s.contactNumber,
+            coalesce(sum(case when dc.qtChecked = true then 1 else 0 end), 0L),
+            coalesce(sum(case when dc.attitudeChecked = true then 1 else 0 end), 0L),
+            coalesce(sum(case when dc.noteChecked = true then 1 else 0 end), 0L)
+        )
+        from YearStudent ys
+        join ys.student s
+        left join DevotionCheck dc on dc.student = s and dc.year = ys.year
+        where ys.year.yearValue = :yearValue
+          and ys.active = true
+          and s.active = true
+        group by s.id, s.studentName, ys.schoolGrade, s.contactNumber
+        order by ys.schoolGrade desc, s.studentName asc, s.id asc
+    """)
+    List<TeacherStudentListResponse> findTeacherStudentsForYear(@Param("yearValue") Integer yearValue);
 
     List<YearStudent> findByStudent(Student student);
 }

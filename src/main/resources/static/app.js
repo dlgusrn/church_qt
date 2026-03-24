@@ -4,7 +4,6 @@
   const notice = document.getElementById("appNotice");
   const btnBack = document.getElementById("btnBack");
   const appToast = document.getElementById("appToast");
-  const appLoading = document.getElementById("appLoading");
   const appHeader = document.querySelector(".app-header");
   const appKicker = document.querySelector(".kicker");
   const STUDENT_BANNER_IMAGE_URL = "";
@@ -13,8 +12,10 @@
   const DEFAULT_STUDENT_YEAR = new Date().getFullYear();
   let cachedStudentCurrentYear = DEFAULT_STUDENT_YEAR;
   let pendingRequestCount = 0;
+  let teacherMenuOutsideClickHandler = null;
+  let teacherMenuEscapeHandler = null;
   const TEACHER_LOGIN_ID_KEY = "qt_teacher_last_login_id";
-  const TEACHER_STUDENT_SORT_KEY = "qt_teacher_students_sort";
+  const TEACHER_NAME_KEY = "qt_teacher_name";
 
   const weekdayNames = ["일", "월", "화", "수", "목", "금", "토"];
   let lastDesktopMarkerLayout = isDesktopMarkerLayout();
@@ -38,19 +39,7 @@
   }
 
   function setLoading(loading) {
-    const path = window.location.pathname;
-    if (
-      document.body.dataset.appMode === "student" ||
-      (path.startsWith("/app/teacher/students/") && path.endsWith("/calendar"))
-    ) {
-      appLoading.classList.add("hidden");
-      return;
-    }
-    if (loading) {
-      appLoading.classList.remove("hidden");
-    } else {
-      appLoading.classList.add("hidden");
-    }
+    return;
   }
 
   function showToast(message) {
@@ -160,6 +149,50 @@
 
   function buildPathWithYearMonth(path, year, month) {
     return `${path}?year=${year}&month=${month}`;
+  }
+
+  function readTeacherNameFromToken() {
+    const token = String(localStorage.getItem(TEACHER_TOKEN_KEY) || "").trim();
+    if (!token) return "";
+    const parts = token.split(".");
+    if (parts.length < 2) return "";
+    try {
+      const normalized = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      const decoded = JSON.parse(atob(normalized));
+      return String(decoded && decoded.teacherName ? decoded.teacherName : "").trim();
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function resolveTeacherDisplayName() {
+    const savedName = String(localStorage.getItem(TEACHER_NAME_KEY) || "").trim();
+    if (savedName) {
+      return savedName;
+    }
+    const tokenName = readTeacherNameFromToken();
+    if (tokenName) {
+      localStorage.setItem(TEACHER_NAME_KEY, tokenName);
+    }
+    return tokenName;
+  }
+
+  function readTeacherTokenClaims() {
+    const token = String(localStorage.getItem(TEACHER_TOKEN_KEY) || "").trim();
+    if (!token) return null;
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+    try {
+      const normalized = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      return JSON.parse(atob(normalized));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function isTeacherPasswordChangeRequired() {
+    const claims = readTeacherTokenClaims();
+    return !!(claims && claims.passwordChangeRequired === true);
   }
 
   function sortByGradeDescName(items) {
@@ -515,8 +548,97 @@
 
   function teacherLogout() {
     localStorage.removeItem(TEACHER_TOKEN_KEY);
+    localStorage.removeItem(TEACHER_NAME_KEY);
     showToast("로그아웃되었습니다.");
     navigate("/app/teacher/login");
+  }
+
+  async function renderTeacherPasswordScreen() {
+    setAppMode("teacher");
+    clearError();
+    setHeaderVisible(true);
+    setKickerVisible(false);
+    setTitle("비밀번호 변경");
+    btnBack.classList.remove("hidden");
+    const passwordChangeRequired = isTeacherPasswordChangeRequired();
+    const passwordChangeCopy = passwordChangeRequired
+      ? "최초 접속 시 비밀번호를 변경하셔야 합니다."
+      : "현재 비밀번호를 확인한 뒤 새 비밀번호로 바꿉니다.";
+
+    appRoot.innerHTML = `
+      <section class="panel simple-panel">
+        <div class="simple-hero">
+          <h2 class="simple-title">비밀번호 변경</h2>
+          <p class="simple-copy">${escapeHtml(passwordChangeCopy)}</p>
+        </div>
+        <div class="auth-row simple-auth-row password-change-grid">
+          <label class="simple-field">
+            <span>현재 비밀번호</span>
+            <input id="teacherCurrentPassword" type="password" placeholder="현재 비밀번호" />
+          </label>
+          <label class="simple-field">
+            <span>새 비밀번호</span>
+            <input id="teacherNewPassword" type="password" placeholder="새 비밀번호" />
+          </label>
+          <label class="simple-field">
+            <span>새 비밀번호 확인</span>
+            <input id="teacherConfirmPassword" type="password" placeholder="새 비밀번호 다시 입력" />
+          </label>
+        </div>
+        <div class="auth-submit simple-auth-submit password-change-actions">
+          <button id="btnTeacherSubmitPassword">변경</button>
+          <button id="btnTeacherPasswordBack" class="ghost" type="button">취소</button>
+        </div>
+      </section>
+    `;
+
+    async function submitPasswordChange() {
+      try {
+        clearError();
+        const currentPassword = document.getElementById("teacherCurrentPassword").value;
+        const newPassword = document.getElementById("teacherNewPassword").value;
+        const confirmPassword = document.getElementById("teacherConfirmPassword").value;
+        if (!currentPassword || !newPassword || !confirmPassword) {
+          throw new Error("모든 비밀번호 항목을 입력하세요.");
+        }
+        if (newPassword !== confirmPassword) {
+          throw new Error("새 비밀번호와 확인 비밀번호가 일치하지 않습니다.");
+        }
+        await requestWithTeacherAuth("/api/teacher/me/password", {
+          method: "POST",
+          body: JSON.stringify({ currentPassword, newPassword, confirmPassword })
+        }).then(function (body) {
+          if (body && body.accessToken) {
+            localStorage.setItem(TEACHER_TOKEN_KEY, body.accessToken);
+          }
+          if (body && body.teacherName) {
+            localStorage.setItem(TEACHER_NAME_KEY, String(body.teacherName || "").trim());
+          }
+        });
+        showToast("비밀번호가 변경되었습니다.");
+        const year = await resolveTeacherYear();
+        navigate(`/app/teacher/students?year=${year}`);
+      } catch (e) {
+        showError(normalizeErrorMessage(e.message));
+      }
+    }
+
+    document.getElementById("btnTeacherSubmitPassword").addEventListener("click", submitPasswordChange);
+    document.getElementById("btnTeacherPasswordBack").addEventListener("click", async function () {
+      const year = await resolveTeacherYear();
+      navigate(`/app/teacher/students?year=${year}`);
+    });
+
+    ["teacherCurrentPassword", "teacherNewPassword", "teacherConfirmPassword"].forEach(function (id) {
+      const input = document.getElementById(id);
+      input.addEventListener("keydown", function (event) {
+        if (event.key !== "Enter") {
+          return;
+        }
+        event.preventDefault();
+        submitPasswordChange();
+      });
+    });
   }
 
   async function renderTeacherLoginScreen() {
@@ -565,9 +687,10 @@
           body: JSON.stringify({ loginId, password })
         });
         localStorage.setItem(TEACHER_TOKEN_KEY, body.accessToken);
+        localStorage.setItem(TEACHER_NAME_KEY, String(body.teacherName || "").trim());
         showToast("로그인 성공");
         const year = await resolveTeacherYear();
-        navigate(`/app/teacher/students?year=${year}`);
+        navigate(body && body.passwordChangeRequired ? "/app/teacher/password" : `/app/teacher/students?year=${year}`);
       } catch (e) {
         showError(e.message);
       }
@@ -587,9 +710,9 @@
   async function renderTeacherStudentsScreen() {
     setAppMode("teacher");
     clearError();
-    setHeaderVisible(true);
+    setHeaderVisible(false);
     setKickerVisible(false);
-    setTitle("학생 선택");
+    setTitle("");
     btnBack.classList.add("hidden");
 
     const params = new URLSearchParams(window.location.search);
@@ -607,30 +730,86 @@
       history.replaceState({}, "", `/app/teacher/students?year=${year}`);
     }
 
-    const savedSort = localStorage.getItem(TEACHER_STUDENT_SORT_KEY) || "grade_name";
+    const teacherName = resolveTeacherDisplayName() || "선생님";
 
     appRoot.innerHTML = `
       <section class="panel">
-        <div class="row">
-          <label>정렬
-            <select id="teacherStudentSort">
-              <option value="grade_name">학년/이름</option>
-              <option value="total_desc">총 개수 높은순</option>
-              <option value="total_asc">총 개수 낮은순</option>
-            </select>
-          </label>
-          <button id="btnTeacherLogout" class="ghost teacher-toolbar-logout">로그아웃</button>
+        <div class="simple-hero teacher-student-hero">
+          <div class="teacher-student-hero-head">
+            <h2 class="simple-title">${escapeHtml(teacherName)} 선생님, 안녕하세요.</h2>
+            <div class="teacher-toolbar-actions teacher-menu">
+              <button
+                id="btnTeacherMenu"
+                class="icon-btn teacher-menu-trigger"
+                type="button"
+                aria-label="교사 메뉴 열기"
+                aria-haspopup="menu"
+                aria-expanded="false"
+              >
+                <span class="teacher-menu-icon" aria-hidden="true">👤</span>
+              </button>
+              <div id="teacherMenuDropdown" class="teacher-menu-dropdown hidden" role="menu">
+                <button id="btnTeacherChangePassword" class="teacher-menu-item teacher-password-btn" type="button" role="menuitem">비밀번호 변경</button>
+                <button id="btnTeacherLogout" class="teacher-menu-item teacher-toolbar-logout" type="button" role="menuitem">로그아웃</button>
+              </div>
+            </div>
+          </div>
+          <p class="simple-copy">체크할 학생을 선택해주세요.</p>
         </div>
         <div id="teacherStudentList" class="list" style="margin-top:10px;"></div>
       </section>
     `;
-    document.getElementById("teacherStudentSort").value =
-      ["grade_name", "total_desc", "total_asc"].includes(savedSort) ? savedSort : "grade_name";
 
-    document.getElementById("btnTeacherLogout").addEventListener("click", teacherLogout);
+    const teacherMenu = document.querySelector(".teacher-menu");
+    const teacherMenuButton = document.getElementById("btnTeacherMenu");
+    const teacherMenuDropdown = document.getElementById("teacherMenuDropdown");
+
+    if (teacherMenuOutsideClickHandler) {
+      document.removeEventListener("click", teacherMenuOutsideClickHandler);
+    }
+    if (teacherMenuEscapeHandler) {
+      document.removeEventListener("keydown", teacherMenuEscapeHandler);
+    }
+
+    function closeTeacherMenu() {
+      teacherMenuDropdown.classList.add("hidden");
+      teacherMenuButton.setAttribute("aria-expanded", "false");
+    }
+
+    function toggleTeacherMenu() {
+      const shouldOpen = teacherMenuDropdown.classList.contains("hidden");
+      teacherMenuDropdown.classList.toggle("hidden", !shouldOpen);
+      teacherMenuButton.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+    }
+
+    teacherMenuButton.addEventListener("click", function (event) {
+      event.stopPropagation();
+      toggleTeacherMenu();
+    });
+
+    teacherMenuOutsideClickHandler = function (event) {
+      if (!teacherMenu.contains(event.target)) {
+        closeTeacherMenu();
+      }
+    };
+    document.addEventListener("click", teacherMenuOutsideClickHandler);
+
+    teacherMenuEscapeHandler = function (event) {
+      if (event.key === "Escape") {
+        closeTeacherMenu();
+      }
+    };
+    document.addEventListener("keydown", teacherMenuEscapeHandler);
+
+    document.getElementById("btnTeacherChangePassword").addEventListener("click", function () {
+      closeTeacherMenu();
+      navigate("/app/teacher/password");
+    });
+    document.getElementById("btnTeacherLogout").addEventListener("click", function () {
+      closeTeacherMenu();
+      teacherLogout();
+    });
     function renderTeacherStudentList() {
-      const sortKey = String(document.getElementById("teacherStudentSort").value || "grade_name");
-      localStorage.setItem(TEACHER_STUDENT_SORT_KEY, sortKey);
       if (students.length === 0) {
         document.getElementById("teacherStudentList").innerHTML = `
           <div class="empty-state">표시할 학생이 없습니다.</div>
@@ -638,16 +817,7 @@
         return;
       }
 
-      const sortedRows = students.slice().sort((a, b) => {
-        if (sortKey === "total_desc") return b.totalCount - a.totalCount;
-        if (sortKey === "total_asc") return a.totalCount - b.totalCount;
-        const gradeA = Number.isFinite(Number(a.schoolGrade)) ? Number(a.schoolGrade) : -1;
-        const gradeB = Number.isFinite(Number(b.schoolGrade)) ? Number(b.schoolGrade) : -1;
-        if (gradeA !== gradeB) return gradeB - gradeA;
-        const nameA = String(a.displayName || a.studentName || "");
-        const nameB = String(b.displayName || b.studentName || "");
-        return nameA.localeCompare(nameB, "ko");
-      });
+      const sortedRows = students.slice();
       document.getElementById("teacherStudentList").innerHTML = sortedRows.map(item => `
         <button class="item-card teacher-student-card" data-student-id="${item.studentId}">
           <div class="item-head">
@@ -670,8 +840,6 @@
         });
       });
     }
-
-    document.getElementById("teacherStudentSort").addEventListener("change", renderTeacherStudentList);
     renderTeacherStudentList();
   }
 
@@ -974,6 +1142,10 @@
           navigate("/app/teacher/login");
           return;
         }
+        if (isTeacherPasswordChangeRequired()) {
+          navigate("/app/teacher/password");
+          return;
+        }
         const year = await resolveTeacherYear();
         navigate(`/app/teacher/students?year=${year}`);
         return;
@@ -981,6 +1153,10 @@
 
       if (path === "/app/teacher/login") {
         if (localStorage.getItem(TEACHER_TOKEN_KEY)) {
+          if (isTeacherPasswordChangeRequired()) {
+            navigate("/app/teacher/password");
+            return;
+          }
           const year = await resolveTeacherYear();
           navigate(`/app/teacher/students?year=${year}`);
           return;
@@ -990,7 +1166,16 @@
       }
 
       if (path === "/app/teacher/students") {
+        if (isTeacherPasswordChangeRequired()) {
+          navigate("/app/teacher/password");
+          return;
+        }
         await renderTeacherStudentsScreen();
+        return;
+      }
+
+      if (path === "/app/teacher/password") {
+        await renderTeacherPasswordScreen();
         return;
       }
 
@@ -1023,6 +1208,11 @@
         return;
       }
       const year = parseYear(params.get("year"), new Date().getFullYear());
+      navigate(`/app/teacher/students?year=${year}`);
+      return;
+    }
+    if (path === "/app/teacher/password") {
+      const year = parseYear(new URLSearchParams(window.location.search).get("year"), new Date().getFullYear());
       navigate(`/app/teacher/students?year=${year}`);
       return;
     }

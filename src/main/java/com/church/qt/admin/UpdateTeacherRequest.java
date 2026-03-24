@@ -6,6 +6,7 @@ public record UpdateTeacherRequest(
         String birthDate,
         String role,
         Boolean active,
-        String password
+        String password,
+        Boolean canCheckAllStudents
 ) {
 }

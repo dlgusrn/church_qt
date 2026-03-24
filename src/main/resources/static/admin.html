@@ -12,8 +12,21 @@
     <div>
       <h1>관리자 페이지</h1>
     </div>
-    <div class="hero-actions">
-      <button id="btnAdminLogout" class="ghost hidden" type="button">로그아웃</button>
+    <div class="hero-actions admin-menu">
+      <button
+        id="btnAdminMenu"
+        class="admin-menu-trigger hidden"
+        type="button"
+        aria-label="관리자 메뉴 열기"
+        aria-haspopup="menu"
+        aria-expanded="false"
+      >
+        <span class="admin-menu-icon" aria-hidden="true">👤</span>
+      </button>
+      <div id="adminMenuDropdown" class="admin-menu-dropdown hidden" role="menu">
+        <button id="btnOpenAdminPasswordPanel" class="ghost admin-menu-item admin-password-trigger hidden" type="button" role="menuitem">비밀번호 변경</button>
+        <button id="btnAdminLogout" class="ghost admin-menu-item admin-logout-trigger hidden" type="button" role="menuitem">로그아웃</button>
+      </div>
     </div>
   </header>
 
@@ -32,6 +45,23 @@
   </section>
 
   <section id="adminProtected" class="admin-protected hidden">
+  <section id="adminPasswordPanel" class="panel password-panel hidden">
+    <div class="section-head">
+      <div>
+        <h2>내 비밀번호 변경</h2>
+        <p class="section-copy">현재 비밀번호를 확인한 뒤 새 비밀번호로 바꿉니다.</p>
+      </div>
+    </div>
+    <div class="auth-grid admin-password-grid">
+      <label>현재 비밀번호 <input id="adminCurrentPassword" type="password" placeholder="현재 비밀번호" /></label>
+      <label>새 비밀번호 <input id="adminNewPassword" type="password" placeholder="새 비밀번호" /></label>
+      <label>새 비밀번호 확인 <input id="adminConfirmPassword" type="password" placeholder="새 비밀번호 다시 입력" /></label>
+    </div>
+    <div class="row-actions password-panel-actions">
+      <button id="btnSubmitAdminPassword" type="button">변경</button>
+      <button id="btnCloseAdminPasswordPanel" class="ghost" type="button">닫기</button>
+    </div>
+  </section>
   <nav class="tab-bar" aria-label="관리자 기능 탭">
     <button class="tab-btn active" type="button" data-tab-target="dashboard">대시보드</button>
     <button class="tab-btn" type="button" data-tab-target="yearclass">연도/반</button>
@@ -111,7 +141,8 @@
         </section>
       </div>
 
-      <section id="yearEditorPanel" class="editor-panel hidden">
+      <div id="yearEditorModal" class="editor-modal hidden" data-editor-modal>
+      <section id="yearEditorPanel" class="editor-panel">
         <div class="manager-head">
           <div>
             <h3 id="yearEditorTitle">연도 추가</h3>
@@ -137,8 +168,10 @@
           </label>
         </div>
       </section>
+      </div>
 
-      <section id="classEditorPanel" class="editor-panel hidden">
+      <div id="classEditorModal" class="editor-modal hidden" data-editor-modal>
+      <section id="classEditorPanel" class="editor-panel">
         <div class="manager-head">
           <div>
             <h3 id="classEditorTitle">반 추가</h3>
@@ -170,6 +203,7 @@
           </label>
         </div>
       </section>
+      </div>
 
       <div class="legacy-form hidden">
         <fieldset>
@@ -353,11 +387,12 @@
         </fieldset>
       </div>
 
-      <section id="teacherEditorPanel" class="editor-panel hidden">
+      <div id="teacherEditorModal" class="editor-modal hidden" data-editor-modal>
+      <section id="teacherEditorPanel" class="editor-panel">
         <div class="manager-head">
           <div>
             <h3 id="teacherEditorTitle">교사 추가</h3>
-            <p class="section-copy">로그인 정보와 권한을 입력한 뒤 저장합니다.</p>
+            <p id="teacherEditorCopy" class="section-copy">로그인 정보와 권한을 입력한 뒤 저장합니다.</p>
           </div>
           <div class="row-actions">
             <button id="btnCloseTeacherEditor" class="ghost" type="button">닫기</button>
@@ -390,6 +425,13 @@
           </label>
         </div>
         <div class="toggle-grid top-gap">
+          <label class="toggle-card" for="teacherEditorCanCheckAllStudents">
+            <span class="toggle-card-head">
+              <input id="teacherEditorCanCheckAllStudents" type="checkbox" />
+              <strong>전체 학생 체크 권한</strong>
+            </span>
+            <span class="toggle-card-copy">이 교사는 담당 반과 상관없이 해당 연도 전체 학생의 큐티 체크를 할 수 있습니다.</span>
+          </label>
           <label class="toggle-card" for="teacherEditorActive">
             <span class="toggle-card-head">
               <input id="teacherEditorActive" type="checkbox" checked />
@@ -399,8 +441,10 @@
           </label>
         </div>
       </section>
+      </div>
 
-      <section id="studentEditorPanel" class="editor-panel hidden">
+      <div id="studentEditorModal" class="editor-modal hidden" data-editor-modal>
+      <section id="studentEditorPanel" class="editor-panel">
         <div class="manager-head">
           <div>
             <h3 id="studentEditorTitle">학생 추가</h3>
@@ -435,6 +479,7 @@
           </label>
         </div>
       </section>
+      </div>
     </section>
 
     <section id="ops-audit" class="panel tab-panel" data-tab-panel="audit">

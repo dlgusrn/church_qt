@@ -1,5 +1,6 @@
 package com.church.qt.admin;
 
+import com.church.qt.common.ChangePasswordRequest;
 import com.church.qt.teacherapp.TeacherAppService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -120,6 +121,15 @@ public class AdminController {
     ) {
         Long teacherId = teacherAppService.extractTeacherId(authorizationHeader);
         return adminService.getAdminMe(teacherId);
+    }
+
+    @PostMapping("/me/password")
+    public void changeAdminPassword(
+            @RequestHeader("Authorization") String authorizationHeader,
+            @RequestBody ChangePasswordRequest request
+    ) {
+        Long teacherId = teacherAppService.extractTeacherId(authorizationHeader);
+        adminService.changeAdminPassword(teacherId, request);
     }
 
     @GetMapping("/bootstrap")

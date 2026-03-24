@@ -1,7 +1,6 @@
 package com.church.qt.domain.yearclass;
 
 import com.church.qt.teacherapp.TeacherStudentListResponse;
-import com.church.qt.domain.yearstudent.YearStudent;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

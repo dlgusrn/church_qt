@@ -132,6 +132,61 @@ h1 {
   gap: 8px;
   margin-left: auto;
   flex: 0 0 auto;
+  position: relative;
+}
+
+.admin-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  min-height: 38px;
+  padding: 0;
+  border: 1px solid #d6c7b6;
+  border-radius: 12px;
+  background: #fff8ee;
+  color: #5f4635;
+  box-shadow: 0 4px 12px #9f7d5812;
+}
+
+.admin-menu-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.admin-menu-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 154px;
+  padding: 6px;
+  border: 1px solid #dccdbc;
+  border-radius: 12px;
+  background: #fffdf9;
+  box-shadow: 0 12px 28px #6f4e2f18;
+  display: grid;
+  gap: 4px;
+  z-index: 20;
+}
+
+.admin-menu-item {
+  width: 100%;
+  justify-content: flex-start;
+  border-radius: 10px;
+}
+
+.hero-actions .admin-password-trigger {
+  background: #fff0d9;
+  border-color: #f0be63;
+  color: #8a5300;
+}
+
+.hero-actions .admin-logout-trigger {
+  background: #eef3f8;
+  border-color: #c9d5e3;
+  color: #27425e;
 }
 
 .hero > div:first-child {
@@ -160,6 +215,26 @@ h1 {
 
 .panel-auth {
   margin-bottom: 12px;
+}
+
+.password-panel {
+  margin-bottom: 12px;
+}
+
+.admin-password-grid {
+  max-width: 420px;
+}
+
+#adminPasswordPanel .password-panel-actions {
+  margin-top: 14px;
+  max-width: 420px;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+#adminPasswordPanel .password-panel-actions button {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .admin-protected {
@@ -426,7 +501,10 @@ h1 {
   font-size: 11px;
 }
 
-#teacherManagementList .btnEditTeacherRow {
+.btnEditTeacherRow,
+.btnEditYearRow,
+.btnEditClassRow,
+.btnEditStudentRow {
   min-height: 34px;
   padding: 7px 10px;
   border-radius: 9px;
@@ -473,12 +551,82 @@ h1 {
   font-size: 13px;
 }
 
+.audit-table th,
+.audit-table td {
+  text-align: left;
+  vertical-align: top;
+}
+
+.audit-table th:nth-child(1),
+.audit-table td:nth-child(1) {
+  width: 52px;
+  text-align: center;
+}
+
+.audit-table th:nth-child(2),
+.audit-table td:nth-child(2) {
+  white-space: nowrap;
+}
+
+.audit-table th:nth-child(3),
+.audit-table td:nth-child(3) {
+  width: 80px;
+  white-space: nowrap;
+}
+
+.audit-action-cell {
+  display: grid;
+  gap: 4px;
+}
+
+.audit-action-badge {
+  justify-self: start;
+}
+
+.audit-action-code {
+  font-size: 11px;
+  color: #7c6654;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.audit-actor {
+  display: inline-flex;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #f5ece0;
+  color: #604938;
+  font-weight: 700;
+}
+
+.audit-detail {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.45;
+  color: #4d3b2e;
+}
+
+.editor-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 14px;
+  background: #2b21184a;
+  backdrop-filter: blur(4px);
+}
+
 .editor-panel {
-  margin-top: 10px;
+  width: min(720px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  margin-top: 0;
   border: 1px solid #dac9b6;
   border-radius: 13px;
   padding: 12px;
   background: #fff8ef;
+  box-shadow: 0 24px 60px #3b28161f;
 }
 
 .compact-form {

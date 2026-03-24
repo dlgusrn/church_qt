@@ -7,6 +7,7 @@ public record CreateTeacherRequest(
         String contactNumber,
         String birthDate,
         String role,
-        Boolean active
+        Boolean active,
+        Boolean canCheckAllStudents
 ) {
 }

@@ -21,6 +21,10 @@
   const adminAuthSection = document.getElementById("adminAuthSection");
   const adminLoginMessage = document.getElementById("adminLoginMessage");
   const btnAdminLogout = document.getElementById("btnAdminLogout");
+  const btnAdminMenu = document.getElementById("btnAdminMenu");
+  const adminMenuDropdown = document.getElementById("adminMenuDropdown");
+  const btnOpenAdminPasswordPanel = document.getElementById("btnOpenAdminPasswordPanel");
+  const adminPasswordPanel = document.getElementById("adminPasswordPanel");
   const TEACHER_TOKEN_KEY = "qt_teacher_access_token";
   const ADMIN_SESSION_TOKEN_KEY = "qt_admin_session_token";
   let adminToken = "";
@@ -40,6 +44,8 @@
   const selectedStudentIds = new Set();
   const selectedAssignmentTeacherIds = new Set();
   const selectedAssignmentStudentIds = new Set();
+  let adminMenuOutsideClickHandler = null;
+  let adminMenuEscapeHandler = null;
   let lastUndoAction = null;
   const bootstrapUiState = {
     mode: "전체",
@@ -119,9 +125,76 @@
   function setAdminAuthenticated(authenticated, teacherName) {
     adminProtected.classList.toggle("hidden", !authenticated);
     adminAuthSection.classList.toggle("hidden", authenticated);
+    if (btnAdminMenu) {
+      btnAdminMenu.classList.toggle("hidden", !authenticated);
+      btnAdminMenu.setAttribute("aria-expanded", "false");
+    }
+    if (!authenticated) {
+      closeAdminMenu();
+    }
+    if (btnOpenAdminPasswordPanel) {
+      btnOpenAdminPasswordPanel.classList.toggle("hidden", !authenticated);
+    }
     if (btnAdminLogout) {
       btnAdminLogout.classList.toggle("hidden", !authenticated);
     }
+  }
+
+  function toggleAdminPasswordPanel(open) {
+    if (!adminPasswordPanel) {
+      return;
+    }
+    adminPasswordPanel.classList.toggle("hidden", !open);
+    if (!open) {
+      ["adminCurrentPassword", "adminNewPassword", "adminConfirmPassword"].forEach(function (id) {
+        const input = document.getElementById(id);
+        if (input) {
+          input.value = "";
+        }
+      });
+    }
+  }
+
+  function findEditorModal(panelId) {
+    const panel = document.getElementById(panelId);
+    return panel ? panel.closest("[data-editor-modal]") : null;
+  }
+
+  function showEditorPanel(panelId) {
+    const modal = findEditorModal(panelId);
+    if (modal) {
+      modal.classList.remove("hidden");
+    }
+  }
+
+  function hideEditorPanel(panelId) {
+    const modal = findEditorModal(panelId);
+    if (modal) {
+      modal.classList.add("hidden");
+    }
+  }
+
+  function hideAllEditorPanels() {
+    ["yearEditorPanel", "classEditorPanel", "teacherEditorPanel", "studentEditorPanel"].forEach(hideEditorPanel);
+  }
+
+  function closeAdminMenu() {
+    if (!adminMenuDropdown) {
+      return;
+    }
+    adminMenuDropdown.classList.add("hidden");
+    if (btnAdminMenu) {
+      btnAdminMenu.setAttribute("aria-expanded", "false");
+    }
+  }
+
+  function toggleAdminMenu() {
+    if (!adminMenuDropdown || !btnAdminMenu) {
+      return;
+    }
+    const shouldOpen = adminMenuDropdown.classList.contains("hidden");
+    adminMenuDropdown.classList.toggle("hidden", !shouldOpen);
+    btnAdminMenu.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
   }
 
   function refreshVisibleTabData() {
@@ -353,6 +426,8 @@
 
   function clearTokenAndReset(message) {
     persistAdminToken("");
+    toggleAdminPasswordPanel(false);
+    hideAllEditorPanels();
     resetUiState();
     setAdminAuthenticated(false);
     setAdminLoginMessage(message || "");
@@ -496,28 +571,32 @@
     }
 
     auditResult.innerHTML = `
-      <table class="manager-table">
+      <table class="manager-table audit-table">
         <thead>
           <tr>
             <th>No</th>
-            <th>ID</th>
             <th>작업시각</th>
             <th>담당자</th>
-            <th>액션</th>
+            <th>작업</th>
             <th>상세</th>
           </tr>
         </thead>
         <tbody>
           ${items.map((row, index) => {
             const data = row && row.data ? row.data : {};
+            const actionType = String(data.action_type || "");
             return `
               <tr>
                 <td data-label="No">${offset + index + 1}</td>
-                <td data-label="ID">${escapeHtml(data.id || "-")}</td>
                 <td data-label="작업시각">${escapeHtml(formatDateTime(data.created_at))}</td>
-                <td data-label="담당자">${escapeHtml(data.actor_teacher_id || "-")}</td>
-                <td data-label="액션"><span class="badge-soft">${escapeHtml(data.action_type || "-")}</span></td>
-                <td data-label="상세">${escapeHtml(data.detail || "-")}</td>
+                <td data-label="담당자"><span class="audit-actor">#${escapeHtml(data.actor_teacher_id || "-")}</span></td>
+                <td data-label="작업">
+                  <div class="audit-action-cell">
+                    <span class="badge-soft audit-action-badge">${escapeHtml(auditActionLabel(actionType))}</span>
+                    <span class="audit-action-code">${escapeHtml(actionType || "-")}</span>
+                  </div>
+                </td>
+                <td data-label="상세"><div class="audit-detail">${escapeHtml(data.detail || "-")}</div></td>
               </tr>
             `;
           }).join("")}
@@ -554,6 +633,26 @@
     if (normalized === "PASTOR") return 1;
     if (normalized === "DIRECTOR") return 2;
     return 3;
+  }
+
+  function auditActionLabel(actionType) {
+    const normalized = String(actionType || "").trim().toUpperCase();
+    if (normalized === "CREATE_YEAR") return "연도 등록";
+    if (normalized === "UPDATE_YEAR") return "연도 수정";
+    if (normalized === "CREATE_YEAR_CLASS") return "반 등록";
+    if (normalized === "UPDATE_YEAR_CLASS") return "반 수정";
+    if (normalized === "ASSIGN_TEACHERS") return "교사 배정";
+    if (normalized === "UNASSIGN_TEACHERS") return "교사 해제";
+    if (normalized === "ASSIGN_STUDENTS") return "학생 배정";
+    if (normalized === "UNASSIGN_STUDENTS") return "학생 해제";
+    if (normalized === "UPDATE_TEACHER_ASSIGNMENT_ROLE") return "담임/보조 변경";
+    if (normalized === "CREATE_TEACHER") return "교사 등록";
+    if (normalized === "UPDATE_TEACHER") return "교사 수정";
+    if (normalized === "CREATE_STUDENT") return "학생 등록";
+    if (normalized === "UPDATE_STUDENT") return "학생 수정";
+    if (normalized === "SAVE_DEVOTION_CHECK") return "열매 체크";
+    if (normalized === "DELETE_DEVOTION_CHECK") return "열매 해제";
+    return normalized || "-";
   }
 
   function assignmentRoleLabel(role) {
@@ -843,7 +942,7 @@
               <td data-label="활성"><span class="badge-soft">${year.active ? "활성" : "비활성"}</span></td>
               <td data-label="관리">
                 <div class="row-actions">
-                  <button class="ghost btnEditYearRow" type="button" data-year-id="${year.id}">수정</button>
+                  <button class="ghost btnEditYearRow btnEditTeacherRow" type="button" data-year-id="${year.id}">수정</button>
                 </div>
               </td>
             </tr>
@@ -862,9 +961,9 @@
         document.getElementById("yearEditorValue").value = String(target.yearValue || "");
         document.getElementById("yearEditorValue").disabled = true;
         document.getElementById("yearEditorActive").checked = !!target.active;
-        document.getElementById("classEditorPanel").classList.add("hidden");
+        hideEditorPanel("classEditorPanel");
         setYearClassTab("years");
-        document.getElementById("yearEditorPanel").classList.remove("hidden");
+        showEditorPanel("yearEditorPanel");
       });
     });
   }
@@ -905,7 +1004,7 @@
               <td data-label="상태"><span class="badge-soft">${item.active ? "활성" : "비활성"}</span></td>
               <td data-label="관리">
                 <div class="row-actions">
-                  <button class="ghost btnEditClassRow" type="button" data-year-class-id="${item.yearClassId}">수정</button>
+                  <button class="ghost btnEditClassRow btnEditTeacherRow" type="button" data-year-class-id="${item.yearClassId}">수정</button>
                 </div>
               </td>
             </tr>
@@ -926,9 +1025,9 @@
         document.getElementById("classEditorName").value = target.className || "";
         document.getElementById("classEditorSortOrder").value = String(target.sortOrder || "");
         document.getElementById("classEditorActive").checked = !!target.active;
-        document.getElementById("yearEditorPanel").classList.add("hidden");
+        hideEditorPanel("yearEditorPanel");
         setYearClassTab("classes");
-        document.getElementById("classEditorPanel").classList.remove("hidden");
+        showEditorPanel("classEditorPanel");
       });
     });
   }
@@ -940,9 +1039,9 @@
     document.getElementById("yearEditorValue").disabled = false;
     document.getElementById("yearEditorValue").value = "";
     document.getElementById("yearEditorActive").checked = true;
-    document.getElementById("classEditorPanel").classList.add("hidden");
+    hideEditorPanel("classEditorPanel");
     setYearClassTab("years");
-    document.getElementById("yearEditorPanel").classList.remove("hidden");
+    showEditorPanel("yearEditorPanel");
   }
 
   function openCreateClassEditor() {
@@ -954,9 +1053,9 @@
     document.getElementById("classEditorName").value = "";
     document.getElementById("classEditorSortOrder").value = "";
     document.getElementById("classEditorActive").checked = true;
-    document.getElementById("yearEditorPanel").classList.add("hidden");
+    hideEditorPanel("yearEditorPanel");
     setYearClassTab("classes");
-    document.getElementById("classEditorPanel").classList.remove("hidden");
+    showEditorPanel("classEditorPanel");
   }
 
   async function reloadClassManagementForSelectedYear() {
@@ -991,6 +1090,7 @@
             <th>No</th>
             <th>이름</th>
             <th>역할</th>
+            <th>전체 체크</th>
             <th>연락처</th>
             <th>생년월일</th>
             <th>관리</th>
@@ -1002,6 +1102,7 @@
               <td data-label="No">${index + 1}</td>
               <td data-label="이름">${escapeHtml(item.teacherName || "-")}</td>
               <td data-label="역할">${escapeHtml(roleLabel(item.role))}</td>
+              <td data-label="전체 체크">${item.canCheckAllStudents ? "가능" : "-"}</td>
               <td data-label="연락처">${escapeHtml(formatContactNumber(item.contactNumber))}</td>
               <td data-label="생년월일">${escapeHtml(formatBirthDate(item.birthDate))}</td>
               <td data-label="관리"><button class="ghost btnEditTeacherRow" type="button" data-teacher-id="${item.teacherId}">수정</button></td>
@@ -1018,17 +1119,20 @@
         teacherEditorState.mode = "edit";
         teacherEditorState.teacherId = target.teacherId;
         document.getElementById("teacherEditorTitle").textContent = "교사 수정";
+        document.getElementById("teacherEditorCopy").textContent = "기본 정보를 수정하고 필요하면 비밀번호도 다시 설정합니다.";
         document.getElementById("teacherEditorLoginId").value = target.loginId || "";
         document.getElementById("teacherEditorLoginId").disabled = true;
         document.getElementById("teacherEditorName").value = target.teacherName || "";
         document.getElementById("teacherEditorPassword").value = "";
+        document.getElementById("teacherEditorPassword").readOnly = false;
         document.getElementById("teacherEditorPassword").placeholder = "변경할 때만 입력";
         document.getElementById("teacherEditorContactNumber").value = formatContactNumber(target.contactNumber).replace(/^-$/, "");
         document.getElementById("teacherEditorBirthDate").value = String(target.birthDate || "");
         document.getElementById("teacherEditorRole").value = target.role || "TEACHER";
+        document.getElementById("teacherEditorCanCheckAllStudents").checked = !!target.canCheckAllStudents;
         document.getElementById("teacherEditorActive").checked = !!target.active;
-        document.getElementById("studentEditorPanel").classList.add("hidden");
-        document.getElementById("teacherEditorPanel").classList.remove("hidden");
+        hideEditorPanel("studentEditorPanel");
+        showEditorPanel("teacherEditorPanel");
       });
     });
   }
@@ -1079,8 +1183,8 @@
         document.getElementById("studentEditorContactNumber").value = formatContactNumber(target.contactNumber).replace(/^-$/, "");
         document.getElementById("studentEditorBirthDate").value = String(target.birthDate || "");
         document.getElementById("studentEditorActive").checked = !!target.active;
-        document.getElementById("teacherEditorPanel").classList.add("hidden");
-        document.getElementById("studentEditorPanel").classList.remove("hidden");
+        hideEditorPanel("teacherEditorPanel");
+        showEditorPanel("studentEditorPanel");
       });
     });
   }
@@ -1089,17 +1193,20 @@
     teacherEditorState.mode = "create";
     teacherEditorState.teacherId = null;
     document.getElementById("teacherEditorTitle").textContent = "교사 추가";
+    document.getElementById("teacherEditorCopy").textContent = "생년월일 8자리가 초기 비밀번호로 자동 설정되며, 첫 로그인 후 변경이 필요합니다.";
     document.getElementById("teacherEditorLoginId").disabled = false;
     document.getElementById("teacherEditorLoginId").value = "";
     document.getElementById("teacherEditorName").value = "";
     document.getElementById("teacherEditorPassword").value = "";
-    document.getElementById("teacherEditorPassword").placeholder = "초기 비밀번호";
+    document.getElementById("teacherEditorPassword").readOnly = true;
+    document.getElementById("teacherEditorPassword").placeholder = "생년월일로 자동 설정";
     document.getElementById("teacherEditorContactNumber").value = "";
     document.getElementById("teacherEditorBirthDate").value = "";
     document.getElementById("teacherEditorRole").value = "TEACHER";
+    document.getElementById("teacherEditorCanCheckAllStudents").checked = false;
     document.getElementById("teacherEditorActive").checked = true;
-    document.getElementById("studentEditorPanel").classList.add("hidden");
-    document.getElementById("teacherEditorPanel").classList.remove("hidden");
+    hideEditorPanel("studentEditorPanel");
+    showEditorPanel("teacherEditorPanel");
   }
 
   function openCreateStudentEditor() {
@@ -1111,8 +1218,8 @@
     document.getElementById("studentEditorContactNumber").value = "";
     document.getElementById("studentEditorBirthDate").value = "";
     document.getElementById("studentEditorActive").checked = true;
-    document.getElementById("teacherEditorPanel").classList.add("hidden");
-    document.getElementById("studentEditorPanel").classList.remove("hidden");
+    hideEditorPanel("teacherEditorPanel");
+    showEditorPanel("studentEditorPanel");
   }
 
   function parseIds(text) {
@@ -1820,25 +1927,121 @@
 
   if (btnAdminLogout) {
     btnAdminLogout.addEventListener("click", function () {
+      closeAdminMenu();
       clearTokenAndReset();
     });
   }
 
+  if (btnAdminMenu) {
+    if (adminMenuOutsideClickHandler) {
+      document.removeEventListener("click", adminMenuOutsideClickHandler);
+    }
+    if (adminMenuEscapeHandler) {
+      document.removeEventListener("keydown", adminMenuEscapeHandler);
+    }
+
+    btnAdminMenu.addEventListener("click", function (event) {
+      event.stopPropagation();
+      toggleAdminMenu();
+    });
+
+    adminMenuOutsideClickHandler = function (event) {
+      const adminMenuRoot = document.querySelector(".admin-menu");
+      if (adminMenuRoot && !adminMenuRoot.contains(event.target)) {
+        closeAdminMenu();
+      }
+    };
+    document.addEventListener("click", adminMenuOutsideClickHandler);
+
+    adminMenuEscapeHandler = function (event) {
+      if (event.key === "Escape") {
+        closeAdminMenu();
+      }
+    };
+    document.addEventListener("keydown", adminMenuEscapeHandler);
+  }
+
+  if (btnOpenAdminPasswordPanel) {
+    btnOpenAdminPasswordPanel.addEventListener("click", function () {
+      closeAdminMenu();
+      const shouldOpen = adminPasswordPanel ? adminPasswordPanel.classList.contains("hidden") : false;
+      toggleAdminPasswordPanel(shouldOpen);
+    });
+  }
+
+  document.getElementById("btnCloseAdminPasswordPanel").addEventListener("click", function () {
+    toggleAdminPasswordPanel(false);
+  });
+
+  async function submitAdminPasswordChange() {
+    try {
+      const currentPassword = document.getElementById("adminCurrentPassword").value;
+      const newPassword = document.getElementById("adminNewPassword").value;
+      const confirmPassword = document.getElementById("adminConfirmPassword").value;
+      if (!currentPassword || !newPassword || !confirmPassword) {
+        throw new Error("모든 비밀번호 항목을 입력하세요.");
+      }
+      if (newPassword !== confirmPassword) {
+        throw new Error("새 비밀번호와 확인 비밀번호가 일치하지 않습니다.");
+      }
+      await api("/api/admin/me/password", {
+        method: "POST",
+        body: JSON.stringify({ currentPassword, newPassword, confirmPassword })
+      });
+      toggleAdminPasswordPanel(false);
+      setStatus("비밀번호 변경 완료");
+      setAdminLoginMessage("");
+      render("비밀번호가 변경되었습니다.");
+    } catch (e) {
+      render(extractErrorMessage(e && e.message ? e.message : e, "비밀번호 변경에 실패했습니다."));
+    }
+  }
+
+  document.getElementById("btnSubmitAdminPassword").addEventListener("click", submitAdminPasswordChange);
+
+  ["adminCurrentPassword", "adminNewPassword", "adminConfirmPassword"].forEach(function (id) {
+    const input = document.getElementById(id);
+    if (!input) {
+      return;
+    }
+    input.addEventListener("keydown", function (event) {
+      if (event.key !== "Enter") {
+        return;
+      }
+      event.preventDefault();
+      submitAdminPasswordChange();
+    });
+  });
+
   document.getElementById("btnOpenCreateYear").addEventListener("click", openCreateYearEditor);
   document.getElementById("btnCloseYearEditor").addEventListener("click", function () {
-    document.getElementById("yearEditorPanel").classList.add("hidden");
+    hideEditorPanel("yearEditorPanel");
   });
   document.getElementById("btnOpenCreateClass").addEventListener("click", openCreateClassEditor);
   document.getElementById("btnCloseClassEditor").addEventListener("click", function () {
-    document.getElementById("classEditorPanel").classList.add("hidden");
+    hideEditorPanel("classEditorPanel");
   });
   document.getElementById("btnOpenCreateTeacher").addEventListener("click", openCreateTeacherEditor);
   document.getElementById("btnCloseTeacherEditor").addEventListener("click", function () {
-    document.getElementById("teacherEditorPanel").classList.add("hidden");
+    hideEditorPanel("teacherEditorPanel");
   });
   document.getElementById("btnOpenCreateStudent").addEventListener("click", openCreateStudentEditor);
   document.getElementById("btnCloseStudentEditor").addEventListener("click", function () {
-    document.getElementById("studentEditorPanel").classList.add("hidden");
+    hideEditorPanel("studentEditorPanel");
+  });
+  document.querySelectorAll("[data-editor-modal]").forEach(function (modal) {
+    modal.addEventListener("click", function (event) {
+      if (event.target !== modal) {
+        return;
+      }
+      modal.classList.add("hidden");
+    });
+  });
+  document.addEventListener("keydown", function (event) {
+    if (event.key !== "Escape") {
+      return;
+    }
+    hideAllEditorPanels();
   });
   document.getElementById("classManagementYearFilter").addEventListener("change", async function () {
     try {
@@ -1908,7 +2111,7 @@
           body: JSON.stringify({ yearValue, openToStudents, openToTeachers, active })
         });
       }
-      document.getElementById("yearEditorPanel").classList.add("hidden");
+      hideEditorPanel("yearEditorPanel");
       render(body);
       cachedYears = await api("/api/admin/years", { method: "GET" });
       renderYearManagement();
@@ -1948,7 +2151,7 @@
           body: JSON.stringify({ yearValue, className, sortOrder, active })
         });
       }
-      document.getElementById("classEditorPanel").classList.add("hidden");
+      hideEditorPanel("classEditorPanel");
       render(body);
       queryYearInput.value = String(yearValue);
       document.getElementById("classManagementYearFilter").value = String(yearValue);
@@ -1972,7 +2175,8 @@
         contactNumber: document.getElementById("teacherEditorContactNumber").value.trim(),
         birthDate: normalizeBirthDateInput(document.getElementById("teacherEditorBirthDate").value),
         role: document.getElementById("teacherEditorRole").value,
-        active: document.getElementById("teacherEditorActive").checked
+        active: document.getElementById("teacherEditorActive").checked,
+        canCheckAllStudents: document.getElementById("teacherEditorCanCheckAllStudents").checked
       };
 
       let body;
@@ -1983,7 +2187,8 @@
           birthDate: createPayload.birthDate,
           role: createPayload.role,
           active: createPayload.active,
-          password: createPayload.password
+          password: createPayload.password,
+          canCheckAllStudents: createPayload.canCheckAllStudents
         };
         body = await api(`/api/admin/teachers/${teacherEditorState.teacherId}?year=${year}`, {
           method: "PATCH",
@@ -1995,7 +2200,7 @@
           body: JSON.stringify(createPayload)
         });
       }
-      document.getElementById("teacherEditorPanel").classList.add("hidden");
+      hideEditorPanel("teacherEditorPanel");
       render(body);
       await loadTeacherPool(teacherPage);
     } catch (e) {
@@ -2029,7 +2234,7 @@
           body: JSON.stringify(payload)
         });
       }
-      document.getElementById("studentEditorPanel").classList.add("hidden");
+      hideEditorPanel("studentEditorPanel");
       render(body);
       await loadStudentPool(studentPage);
     } catch (e) {

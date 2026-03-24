@@ -1,5 +1,6 @@
 package com.church.qt.teacherapp;
 
+import com.church.qt.common.ChangePasswordRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -33,6 +34,15 @@ public class TeacherAppController {
     ) {
         Long teacherId = teacherAppService.extractTeacherId(authorizationHeader);
         teacherAppService.updateCheck(teacherId, request);
+    }
+
+    @PostMapping("/me/password")
+    public TeacherLoginResponse changeMyPassword(
+            @RequestHeader("Authorization") String authorizationHeader,
+            @RequestBody ChangePasswordRequest request
+    ) {
+        Long teacherId = teacherAppService.extractTeacherId(authorizationHeader);
+        return teacherAppService.changePassword(teacherId, request);
     }
 
 }

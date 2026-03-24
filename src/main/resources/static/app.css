@@ -209,8 +209,78 @@ body[data-app-mode="teacher"] .row {
   gap: 6px;
 }
 
-body[data-app-mode="teacher"] .teacher-toolbar-logout {
+body[data-app-mode="teacher"] .teacher-student-hero-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+body[data-app-mode="teacher"] .teacher-student-hero-head .simple-title {
+  margin: 0;
+}
+
+body[data-app-mode="teacher"] .teacher-toolbar-actions {
   margin-left: auto;
+  position: relative;
+}
+
+body[data-app-mode="teacher"] .teacher-menu-trigger {
+  border: 1px solid #cfd9e5;
+  background: #f6f9fc;
+  color: #27425e;
+}
+
+body[data-app-mode="teacher"] .teacher-menu-icon {
+  font-size: 17px;
+  line-height: 1;
+}
+
+body[data-app-mode="teacher"] .teacher-menu-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 148px;
+  padding: 6px;
+  border: 1px solid #d8e0ea;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 12px 28px #16324a14;
+  display: grid;
+  gap: 4px;
+  z-index: 20;
+}
+
+body[data-app-mode="teacher"] .teacher-menu-item {
+  width: 100%;
+  justify-content: flex-start;
+  border-radius: 10px;
+}
+
+body[data-app-mode="teacher"] .teacher-toolbar-logout {
+  background: #eef3f8;
+  border-color: #c9d5e3;
+  color: #27425e;
+}
+
+body[data-app-mode="teacher"] .teacher-password-btn {
+  background: #fff0d9;
+  border-color: #f0be63;
+  color: #8a5300;
+}
+
+body[data-app-mode="teacher"] .password-change-grid {
+  display: grid;
+  gap: 10px;
+}
+
+body[data-app-mode="teacher"] .password-change-actions {
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+body[data-app-mode="teacher"] .password-change-actions button {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 body[data-app-mode="teacher"] .summary {

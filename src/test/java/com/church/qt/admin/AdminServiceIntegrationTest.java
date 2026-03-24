@@ -492,6 +492,7 @@ class AdminServiceIntegrationTest {
                         "010-2222-3333",
                         "19900101",
                         "TEACHER",
+                        true,
                         true
                 )
         );
@@ -503,6 +504,48 @@ class AdminServiceIntegrationTest {
         assertEquals(admin.getId(), ((Number) row.get("actor_teacher_id")).longValue());
         assertEquals("CREATE_TEACHER", row.get("action_type"));
         assertTrue(String.valueOf(row.get("detail")).contains("teacherId=" + response.teacherId()));
+        assertTrue(response.canCheckAllStudents());
+    }
+
+    @Test
+    @DisplayName("관리자 교사 생성/수정은 전체 학생 체크 권한을 저장한다")
+    void createAndUpdateTeacher_persistsCanCheckAllStudents() {
+        Teacher admin = saveTeacher("admin_check_access", TeacherRole.ADMIN, true);
+
+        AdminTeacherResponse created = adminService.createTeacher(
+                admin.getId(),
+                new CreateTeacherRequest(
+                        "teacher_check_access",
+                        "Password123!",
+                        "전체체크교사",
+                        "010-1234-5678",
+                        "19920304",
+                        "TEACHER",
+                        true,
+                        true
+                )
+        );
+
+        assertTrue(created.canCheckAllStudents());
+
+        AdminTeacherResponse updated = adminService.updateTeacher(
+                admin.getId(),
+                null,
+                created.teacherId(),
+                new UpdateTeacherRequest(
+                        "전체체크교사수정",
+                        "010-9999-9999",
+                        "19920304",
+                        "TEACHER",
+                        true,
+                        null,
+                        false
+                )
+        );
+
+        assertTrue(!updated.canCheckAllStudents());
+        Teacher savedTeacher = teacherRepository.findById(created.teacherId()).orElseThrow();
+        assertTrue(!savedTeacher.canCheckAllStudents());
     }
 
     private Teacher saveTeacher(String loginId, TeacherRole role, boolean active) {

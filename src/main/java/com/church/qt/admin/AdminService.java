@@ -1,5 +1,8 @@
 package com.church.qt.admin;
 
+import com.church.qt.common.AuditLogService;
+import com.church.qt.common.ChangePasswordRequest;
+import com.church.qt.common.PasswordPolicyValidator;
 import com.church.qt.domain.devotion.DevotionCheckRepository;
 import com.church.qt.domain.student.Student;
 import com.church.qt.domain.student.StudentRepository;
@@ -60,6 +63,8 @@ public class AdminService {
     private final YearTeacherRepository yearTeacherRepository;
     private final YearStudentRepository yearStudentRepository;
     private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
+    private final AuditLogService auditLogService;
+    private final PasswordPolicyValidator passwordPolicyValidator;
     private final PasswordEncoder passwordEncoder;
     private final DevotionCheckRepository devotionCheckRepository;
 
@@ -71,6 +76,32 @@ public class AdminService {
     @Transactional(readOnly = true)
     public AdminMeResponse getAdminMe(Long teacherId) {
         return AdminMeResponse.from(getAndValidateAdminTeacher(teacherId));
+    }
+
+    @Transactional
+    public void changeAdminPassword(Long teacherId, ChangePasswordRequest request) {
+        Teacher adminTeacher = getAndValidateAdminTeacher(teacherId);
+        String currentPassword = requireText(request.currentPassword(), "currentPassword");
+        String newPassword = requireText(request.newPassword(), "newPassword");
+        String confirmPassword = requireText(request.confirmPassword(), "confirmPassword");
+
+        if (!passwordEncoder.matches(currentPassword, adminTeacher.getPasswordHash())) {
+            throw new IllegalArgumentException("현재 비밀번호가 올바르지 않습니다.");
+        }
+        if (!newPassword.equals(confirmPassword)) {
+            throw new IllegalArgumentException("새 비밀번호와 확인 비밀번호가 일치하지 않습니다.");
+        }
+        if (currentPassword.equals(newPassword)) {
+            throw new IllegalArgumentException("새 비밀번호는 현재 비밀번호와 달라야 합니다.");
+        }
+        passwordPolicyValidator.validate(newPassword);
+
+        adminTeacher.changePassword(passwordEncoder.encode(newPassword));
+        recordAuditLog(
+                teacherId,
+                "CHANGE_PASSWORD",
+                "teacherId=" + adminTeacher.getId() + ", loginId=" + adminTeacher.getLoginId() + ", scope=admin"
+        );
     }
 
     @Transactional(readOnly = true)
@@ -766,6 +797,7 @@ public class AdminService {
                             teacher.getContactNumber(),
                             teacher.getBirthDate(),
                             teacher.getEffectiveRole().name(),
+                            teacher.canCheckAllStudents(),
                             teacher.getActive(),
                             teacher.getCreatedAt(),
                             teacher.getUpdatedAt()
@@ -804,20 +836,23 @@ public class AdminService {
 
         String loginId = requireText(request.loginId(), "loginId");
         String teacherName = requireText(request.teacherName(), "teacherName");
+        String birthDate = normalizeBirthDate(requireText(request.birthDate(), "birthDate"));
         TeacherRole role = parseTeacherRole(request.role());
+        boolean canCheckAllStudents = Boolean.TRUE.equals(request.canCheckAllStudents());
         Teacher savedTeacher;
 
         Teacher teacher = teacherRepository.findByLoginId(loginId).orElse(null);
         if (teacher == null) {
-            String password = requireText(request.password(), "password");
             teacher = Teacher.builder()
                     .loginId(loginId)
-                    .passwordHash(passwordEncoder.encode(password))
+                    .passwordHash(passwordEncoder.encode(birthDate))
                     .teacherName(teacherName)
                     .contactNumber(normalizeContactNumber(request.contactNumber()))
-                    .birthDate(normalizeBirthDate(request.birthDate()))
+                    .birthDate(birthDate)
                     .role(role)
                     .active(true)
+                    .passwordChangeRequired(true)
+                    .canCheckAllStudents(canCheckAllStudents)
                     .build();
             savedTeacher = teacherRepository.save(teacher);
         } else {
@@ -827,10 +862,13 @@ public class AdminService {
             teacher.updateInfo(
                     teacherName,
                     normalizeContactNumber(request.contactNumber()),
-                    normalizeBirthDate(request.birthDate()),
+                    birthDate,
                     role,
-                    teacher.getActive()
+                    teacher.getActive(),
+                    canCheckAllStudents
             );
+            teacher.changePassword(passwordEncoder.encode(birthDate));
+            teacher.updatePasswordChangeRequired(true);
             savedTeacher = teacher;
         }
 
@@ -868,12 +906,15 @@ public class AdminService {
                 normalizeContactNumber(request.contactNumber()),
                 normalizeBirthDate(request.birthDate()),
                 parseTeacherRole(request.role()),
-                teacher.getActive()
+                teacher.getActive(),
+                Boolean.TRUE.equals(request.canCheckAllStudents())
         );
         yearTeacher.update(yearTeacher.getSortOrder(), request.active() == null || request.active());
 
         if (hasText(request.password())) {
-            teacher.changePassword(passwordEncoder.encode(request.password().trim()));
+            String nextPassword = request.password().trim();
+            passwordPolicyValidator.validate(nextPassword);
+            teacher.changePassword(passwordEncoder.encode(nextPassword));
         }
         recordAuditLog(
                 adminTeacherId,
@@ -1198,20 +1239,7 @@ public class AdminService {
     }
 
     private void recordAuditLog(Long actorTeacherId, String actionType, String detail) {
-        try {
-            namedParameterJdbcTemplate.update(
-                    """
-                    insert into audit_logs(actor_teacher_id, action_type, detail, created_at)
-                    values (:actorTeacherId, :actionType, :detail, CURRENT_TIMESTAMP)
-                    """,
-                    new MapSqlParameterSource()
-                            .addValue("actorTeacherId", actorTeacherId)
-                            .addValue("actionType", actionType)
-                            .addValue("detail", detail)
-            );
-        } catch (RuntimeException e) {
-            log.warn("Failed to write audit log. actorTeacherId={}, actionType={}, detail={}", actorTeacherId, actionType, detail, e);
-        }
+        auditLogService.record(actorTeacherId, actionType, detail);
     }
 
     private String joinIds(List<Long> ids) {
