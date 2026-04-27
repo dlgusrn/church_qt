@@ -1400,6 +1400,25 @@
     return `/app/teacher/students/${studentId}/calendar?year=${yearValue}&month=${today.getMonth() + 1}&source=admin`;
   }
 
+  function parseSchoolGrade(value) {
+    const grade = Number(value);
+    return Number.isFinite(grade) ? grade : Number.MAX_SAFE_INTEGER;
+  }
+
+  function compareStudentsByTotalCount(a, b) {
+    const totalDiff = (b.totalCount || 0) - (a.totalCount || 0);
+    if (totalDiff !== 0) {
+      return totalDiff;
+    }
+
+    const gradeDiff = parseSchoolGrade(b.schoolGrade) - parseSchoolGrade(a.schoolGrade);
+    if (gradeDiff !== 0) {
+      return gradeDiff;
+    }
+
+    return String(a.studentName || "").localeCompare(String(b.studentName || ""), "ko");
+  }
+
   function applyFilterAndRender() {
     const filtered = cachedYearClasses.slice();
     const activeYear = getActiveYearValue()
@@ -1428,7 +1447,7 @@
         }
         return acc;
       }, [])
-      .sort((a, b) => (b.qtCount || 0) - (a.qtCount || 0) || (b.totalCount || 0) - (a.totalCount || 0))
+      .sort(compareStudentsByTotalCount)
       .slice(0, 5);
 
     const rankingContainer = document.getElementById("dashboardOverallRanking");
@@ -1478,7 +1497,7 @@
       });
       const ranking = students
         .slice()
-        .sort((a, b) => (b.totalCount || 0) - (a.totalCount || 0) || (b.qtCount || 0) - (a.qtCount || 0))
+        .sort(compareStudentsByTotalCount)
         .slice(0, 5);
 
       return `

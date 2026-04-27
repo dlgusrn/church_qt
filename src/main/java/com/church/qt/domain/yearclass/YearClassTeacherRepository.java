@@ -1,6 +1,5 @@
 package com.church.qt.domain.yearclass;
 
-import com.church.qt.teacherapp.TeacherStudentListResponse;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -40,28 +39,13 @@ public interface YearClassTeacherRepository extends JpaRepository<YearClassTeach
     boolean existsManageableStudent(Long teacherId, Long studentId, Integer yearValue);
 
     @Query("""
-        select new com.church.qt.teacherapp.TeacherStudentListResponse(
-            s.id,
-            s.studentName,
-            ys.schoolGrade,
-            s.contactNumber,
-            coalesce(sum(case when dc.qtChecked = true then 1 else 0 end), 0L),
-            coalesce(sum(case when dc.attitudeChecked = true then 1 else 0 end), 0L),
-            coalesce(sum(case when dc.noteChecked = true then 1 else 0 end), 0L)
-        )
+        select yc.className
         from YearClassTeacher yct
         join yct.yearClass yc
-        join YearClassStudent ycs on ycs.yearClass = yc and ycs.year = yc.year
-        join ycs.student s
-        join YearStudent ys on ys.year = yc.year and ys.student = s
-        left join DevotionCheck dc on dc.student = s and dc.year = yc.year
         where yct.teacher.id = :teacherId
           and yc.year.yearValue = :yearValue
           and yc.active = true
-          and ys.active = true
-          and s.active = true
-        group by s.id, s.studentName, ys.schoolGrade, s.contactNumber
-        order by ys.schoolGrade desc, s.studentName asc
+        order by yc.sortOrder asc, yc.id asc
     """)
-    List<TeacherStudentListResponse> findTeacherStudents(Long teacherId, Integer yearValue);
+    List<String> findClassNamesByTeacherIdAndYearValue(@Param("teacherId") Long teacherId, @Param("yearValue") Integer yearValue);
 }

@@ -1174,7 +1174,7 @@ public class AdminService {
                             item.getYearClass().getYear().getId(),
                             item.getStudent().getId()
                     );
-                    long noteCount = devotionCheckRepository.countByYearIdAndStudentIdAndNoteCheckedTrue(
+                    long noteCount = devotionCheckRepository.sumNoteCountByYearIdAndStudentId(
                             item.getYearClass().getYear().getId(),
                             item.getStudent().getId()
                     );

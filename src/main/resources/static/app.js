@@ -195,14 +195,50 @@
     return !!(claims && claims.passwordChangeRequired === true);
   }
 
-  function sortByGradeDescName(items) {
+  function teacherHasPrivilegedCheckAccess() {
+    const claims = readTeacherTokenClaims();
+    const role = String(claims && claims.role ? claims.role : "").toUpperCase();
+    return role === "ADMIN" || role === "PASTOR" || role === "DIRECTOR";
+  }
+
+  function teacherCanCheckAllStudents() {
+    const claims = readTeacherTokenClaims();
+    return !!(claims && claims.canCheckAllStudents === true);
+  }
+
+  function parseSchoolGradeOrder(value) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : -1;
+  }
+
+  async function canEditFullCheckForStudent(studentId, year) {
+    const students = await requestWithTeacherAuth(`/api/teacher/me/students?year=${year}`);
+    const target = (Array.isArray(students) ? students : []).find(item => Number(item.studentId) === Number(studentId));
+    return !!(target && target.myClassStudent);
+  }
+
+  async function resolveTeacherCheckPermissions(studentId, year) {
+    const students = await requestWithTeacherAuth(`/api/teacher/me/students?year=${year}`);
+    const target = (Array.isArray(students) ? students : []).find(item => Number(item.studentId) === Number(studentId));
+    const myClassStudent = !!(target && target.myClassStudent);
+    const privileged = teacherHasPrivilegedCheckAccess();
+    return {
+      canEditQt: myClassStudent || privileged || teacherCanCheckAllStudents(),
+      canEditNote: myClassStudent || privileged,
+      canEditAttitude: true
+    };
+  }
+
+  function sortByGradeName(items) {
     return (Array.isArray(items) ? items.slice() : []).sort((a, b) => {
-      const gradeA = Number.isFinite(Number(a.schoolGrade)) ? Number(a.schoolGrade) : -1;
-      const gradeB = Number.isFinite(Number(b.schoolGrade)) ? Number(b.schoolGrade) : -1;
+      const gradeA = parseSchoolGradeOrder(a.schoolGrade);
+      const gradeB = parseSchoolGradeOrder(b.schoolGrade);
       if (gradeA !== gradeB) return gradeB - gradeA;
-      const nameA = String(a.displayName || a.studentName || "");
-      const nameB = String(b.displayName || b.studentName || "");
-      return nameA.localeCompare(nameB, "ko");
+      const nameA = String(a.studentName || a.displayName || "");
+      const nameB = String(b.studentName || b.displayName || "");
+      const nameCompare = nameA.localeCompare(nameB, "ko");
+      if (nameCompare !== 0) return nameCompare;
+      return Number(a.studentId || 0) - Number(b.studentId || 0);
     });
   }
 
@@ -299,9 +335,16 @@
     days.forEach(day => {
       const dayNum = Number(day.date.split("-")[2]);
       const markers = [];
-      if (day.qtChecked) markers.push('<span class="day-marker qt" aria-label="QT">🍇</span>');
-      if (day.noteChecked) markers.push('<span class="day-marker note" aria-label="노트">🍐</span>');
-      if (day.attitudeChecked) markers.push('<span class="day-marker attitude" aria-label="태도">🫒</span>');
+      if (day.qtChecked) {
+        markers.push({ type: "qt", html: '<span class="day-marker qt" aria-label="QT">🍇</span>' });
+      }
+      const noteCount = Number(day.noteCount || 0);
+      for (let i = 0; i < noteCount; i += 1) {
+        markers.push({ type: "note", html: '<span class="day-marker note" aria-label="노트">🍐</span>' });
+      }
+      if (day.attitudeChecked) {
+        markers.push({ type: "attitude", html: '<span class="day-marker attitude" aria-label="태도">🫒</span>' });
+      }
       const todayClass = day.isToday ? " today" : "";
       const selectedClass = selectedDate && selectedDate === day.date ? " selected" : "";
       cells.push(`
@@ -331,11 +374,12 @@
     }
 
     const isDesktop = isDesktopMarkerLayout();
+    const markerHtml = markers.map(marker => marker.html);
 
     if (markers.length === 1) {
       return `
         <div class="day-icons">
-          <div class="day-icons-row single">${markers[0]}</div>
+          <div class="day-icons-row single">${markerHtml[0]}</div>
         </div>
       `;
     }
@@ -343,23 +387,38 @@
     if (markers.length === 2) {
       return `
         <div class="day-icons">
-          <div class="day-icons-row bottom">${markers.join("")}</div>
+          <div class="day-icons-row single">${markerHtml.join("")}</div>
         </div>
       `;
     }
 
-    if (markers.length === 3 && isDesktop) {
+    if (isDesktop && markers.length === 3) {
       return `
         <div class="day-icons">
-          <div class="day-icons-row triple">${markers.join("")}</div>
+          <div class="day-icons-row triple">${markerHtml.join("")}</div>
+        </div>
+      `;
+    }
+
+    const topMarkers = markers
+      .filter(marker => marker.type === "qt" || marker.type === "attitude")
+      .map(marker => marker.html);
+    const bottomMarkers = markers
+      .filter(marker => marker.type === "note")
+      .map(marker => marker.html);
+
+    if (topMarkers.length === 0 || bottomMarkers.length === 0) {
+      return `
+        <div class="day-icons">
+          <div class="day-icons-row single">${markerHtml.join("")}</div>
         </div>
       `;
     }
 
     return `
       <div class="day-icons">
-        <div class="day-icons-row top">${markers[0]}</div>
-        <div class="day-icons-row bottom">${markers.slice(1, 3).join("")}</div>
+        <div class="day-icons-row top">${topMarkers.join("")}</div>
+        <div class="day-icons-row bottom notes">${bottomMarkers.join("")}</div>
       </div>
     `;
   }
@@ -427,7 +486,7 @@
 
     await ensureStudentCurrentYear();
     const students = await request("/api/students");
-    const sorted = sortByGradeDescName(students);
+    const sorted = sortByGradeName(students);
 
     appRoot.innerHTML = `
       ${renderStudentBanner()}
@@ -719,14 +778,14 @@
     let year = await resolveTeacherYear(params.get("year"));
     let students;
     try {
-      students = sortByGradeDescName(await requestWithTeacherAuth(`/api/teacher/me/students?year=${year}`));
+      students = await requestWithTeacherAuth(`/api/teacher/me/students?year=${year}`);
     } catch (e) {
       const message = normalizeErrorMessage(e.message);
       if (!message.includes("해당 연도가 존재하지 않습니다.")) {
         throw e;
       }
       year = await ensureStudentCurrentYear();
-      students = sortByGradeDescName(await requestWithTeacherAuth(`/api/teacher/me/students?year=${year}`));
+      students = await requestWithTeacherAuth(`/api/teacher/me/students?year=${year}`);
       history.replaceState({}, "", `/app/teacher/students?year=${year}`);
     }
 
@@ -817,8 +876,10 @@
         return;
       }
 
-      const sortedRows = students.slice();
-      document.getElementById("teacherStudentList").innerHTML = sortedRows.map(item => `
+      const myClassStudents = sortByGradeName(students.filter(item => item.myClassStudent));
+      const otherStudents = sortByGradeName(students.filter(item => !item.myClassStudent));
+      const myClassTitle = String((myClassStudents[0] && myClassStudents[0].myClassName) || "").trim() || "본인 반";
+      const renderStudentCards = items => items.map(item => `
         <button class="item-card teacher-student-card" data-student-id="${item.studentId}">
           <div class="item-head">
             <span class="item-title">${escapeHtml(item.studentName || item.displayName)}</span>
@@ -832,6 +893,27 @@
           </div>
         </button>
       `).join("");
+
+      document.getElementById("teacherStudentList").innerHTML = `
+        ${myClassStudents.length ? `
+          <section class="teacher-student-section">
+            <div class="teacher-student-section-head">
+              <h3 class="teacher-student-section-title">${escapeHtml(myClassTitle)}</h3>
+              <span class="teacher-student-section-count">${myClassStudents.length}명</span>
+            </div>
+            <div class="list">${renderStudentCards(myClassStudents)}</div>
+          </section>
+        ` : ""}
+        ${otherStudents.length ? `
+          <section class="teacher-student-section">
+            <div class="teacher-student-section-head">
+              <h3 class="teacher-student-section-title">주일학교 전체</h3>
+              <span class="teacher-student-section-count">${otherStudents.length}명</span>
+            </div>
+            <div class="list">${renderStudentCards(otherStudents)}</div>
+          </section>
+        ` : ""}
+      `;
 
       appRoot.querySelectorAll(".teacher-student-card").forEach(btn => {
         btn.addEventListener("click", () => {
@@ -867,21 +949,45 @@
       body = await requestWithTeacherAuth(`/api/students/${studentId}/calendar?year=${year}&month=${month}`);
       history.replaceState({}, "", `${buildPathWithYearMonth(`/app/teacher/students/${studentId}/calendar`, year, month)}${fromAdmin ? "&source=admin" : ""}`);
     }
+
     let selectedDate = null;
-    let selectedQt = false;
-    let selectedAttitude = false;
-    let selectedNote = false;
     let baseQt = false;
     let baseAttitude = false;
-    let baseNote = false;
+    let baseNoteCount = 0;
     const autoAdvanceNextDay = true;
+    const permissions = await resolveTeacherCheckPermissions(studentId, year);
+
+    function getCurrentNoteCount() {
+      return Number(document.getElementById("noteCountInput").value || 0);
+    }
+
+    function setCurrentNoteCount(value) {
+      const safeValue = Math.max(0, Math.min(3, Number(value) || 0));
+      document.getElementById("noteCountInput").value = String(safeValue);
+      document.getElementById("noteCountValue").textContent = String(safeValue);
+    }
+
+    function applyCheckFieldPermissions() {
+      const toggleQt = document.getElementById("toggleQt");
+      const noteStepper = document.querySelector(".note-stepper");
+      const qtLabel = toggleQt ? toggleQt.closest("label") : null;
+      if (toggleQt) {
+        toggleQt.disabled = !permissions.canEditQt;
+      }
+      if (qtLabel) {
+        qtLabel.classList.toggle("disabled", !permissions.canEditQt);
+      }
+      if (noteStepper) {
+        noteStepper.classList.toggle("disabled", !permissions.canEditNote);
+      }
+    }
 
     function hasUnsavedChanges() {
       if (!selectedDate) return false;
       const currentQt = document.getElementById("toggleQt").checked;
       const currentAttitude = document.getElementById("toggleAttitude").checked;
-      const currentNote = document.getElementById("toggleNote").checked;
-      return currentQt !== baseQt || currentAttitude !== baseAttitude || currentNote !== baseNote;
+      const currentNoteCount = getCurrentNoteCount();
+      return currentQt !== baseQt || currentAttitude !== baseAttitude || currentNoteCount !== baseNoteCount;
     }
 
     function confirmDiscardIfNeeded() {
@@ -899,10 +1005,10 @@
       syncPanelFromDate(body.days[nextIdx].date);
     }
 
-    function adjustSummaryAfterSave(previousQt, previousAttitude, previousNote, nextQt, nextAttitude, nextNote) {
+    function adjustSummaryAfterSave(previousQt, previousAttitude, previousNoteCount, nextQt, nextAttitude, nextNoteCount) {
       const qtDelta = (nextQt ? 1 : 0) - (previousQt ? 1 : 0);
       const attitudeDelta = (nextAttitude ? 1 : 0) - (previousAttitude ? 1 : 0);
-      const noteDelta = (nextNote ? 1 : 0) - (previousNote ? 1 : 0);
+      const noteDelta = nextNoteCount - previousNoteCount;
       body.summary.qtCount += qtDelta;
       body.summary.attitudeCount += attitudeDelta;
       body.summary.noteCount += noteDelta;
@@ -924,14 +1030,12 @@
       selectedDate = dateText;
       baseQt = !!(target && target.qtChecked);
       baseAttitude = !!(target && target.attitudeChecked);
-      baseNote = !!(target && target.noteChecked);
-      selectedQt = baseQt;
-      selectedAttitude = baseAttitude;
-      selectedNote = baseNote;
-      document.getElementById("toggleQt").checked = selectedQt;
-      document.getElementById("toggleAttitude").checked = selectedAttitude;
-      document.getElementById("toggleNote").checked = selectedNote;
+      baseNoteCount = Number(target && target.noteCount ? target.noteCount : 0);
+      document.getElementById("toggleQt").checked = baseQt;
+      document.getElementById("toggleAttitude").checked = baseAttitude;
+      setCurrentNoteCount(baseNoteCount);
       document.getElementById("checkPanel").classList.remove("hidden");
+      applyCheckFieldPermissions();
       renderCalendarOnly();
       updateSaveButtonState();
     }
@@ -946,8 +1050,8 @@
       }
       const currentQt = document.getElementById("toggleQt").checked;
       const currentAttitude = document.getElementById("toggleAttitude").checked;
-      const currentNote = document.getElementById("toggleNote").checked;
-      const changed = currentQt !== baseQt || currentAttitude !== baseAttitude || currentNote !== baseNote;
+      const currentNoteCount = getCurrentNoteCount();
+      const changed = currentQt !== baseQt || currentAttitude !== baseAttitude || currentNoteCount !== baseNoteCount;
       saveButton.disabled = !changed;
       saveButton.textContent = changed ? "저장" : "변경 없음";
     }
@@ -997,10 +1101,19 @@
             <button id="btnClearAll" class="ghost" type="button">전체 해제</button>
           </div>
           <div class="switch-row">
-            <label><input id="toggleQt" type="checkbox" /> QT 완료</label>
-            <label><input id="toggleNote" type="checkbox" /> 노트 완료</label>
-            <label><input id="toggleAttitude" type="checkbox" /> 태도 완료</label>
+            <label><input id="toggleQt" type="checkbox" /> QT</label>
+            <span class="switch-divider" aria-hidden="true">|</span>
+            <div class="note-stepper">
+              <span class="note-stepper-label">노트</span>
+              <button id="btnNoteMinus" class="ghost note-stepper-btn" type="button">-</button>
+              <span id="noteCountValue" class="note-stepper-value">0</span>
+              <button id="btnNotePlus" class="ghost note-stepper-btn" type="button">+</button>
+              <input id="noteCountInput" type="hidden" value="0" />
+            </div>
+            <span class="switch-divider" aria-hidden="true">|</span>
+            <label><input id="toggleAttitude" type="checkbox" /> 태도</label>
           </div>
+          ${permissions.canEditQt && permissions.canEditNote ? "" : permissions.canEditQt ? '<div class="legend">다른 반 학생은 QT와 태도만 체크할 수 있습니다.</div>' : '<div class="legend">다른 반 학생은 태도만 체크할 수 있습니다.</div>'}
           <div class="save-row">
             <button id="btnSaveCheck">저장</button>
             <button id="btnCancelSelect" class="ghost">닫기</button>
@@ -1011,6 +1124,7 @@
     `;
 
     renderCalendarOnly();
+    applyCheckFieldPermissions();
 
     document.getElementById("btnTeacherCalendarBack").addEventListener("click", () => {
       if (fromAdmin) {
@@ -1042,22 +1156,39 @@
     });
 
     document.getElementById("btnMarkAll").addEventListener("click", () => {
-      document.getElementById("toggleQt").checked = true;
+      if (permissions.canEditQt) {
+        document.getElementById("toggleQt").checked = true;
+      }
+      if (permissions.canEditNote) {
+        setCurrentNoteCount(3);
+      }
       document.getElementById("toggleAttitude").checked = true;
-      document.getElementById("toggleNote").checked = true;
       updateSaveButtonState();
     });
 
     document.getElementById("btnClearAll").addEventListener("click", () => {
-      document.getElementById("toggleQt").checked = false;
+      if (permissions.canEditQt) {
+        document.getElementById("toggleQt").checked = false;
+      }
+      if (permissions.canEditNote) {
+        setCurrentNoteCount(0);
+      }
       document.getElementById("toggleAttitude").checked = false;
-      document.getElementById("toggleNote").checked = false;
       updateSaveButtonState();
     });
 
     document.getElementById("toggleQt").addEventListener("change", updateSaveButtonState);
     document.getElementById("toggleAttitude").addEventListener("change", updateSaveButtonState);
-    document.getElementById("toggleNote").addEventListener("change", updateSaveButtonState);
+    document.getElementById("btnNoteMinus").addEventListener("click", () => {
+      if (!permissions.canEditNote) return;
+      setCurrentNoteCount(getCurrentNoteCount() - 1);
+      updateSaveButtonState();
+    });
+    document.getElementById("btnNotePlus").addEventListener("click", () => {
+      if (!permissions.canEditNote) return;
+      setCurrentNoteCount(getCurrentNoteCount() + 1);
+      updateSaveButtonState();
+    });
 
     const todayIso = new Date().toISOString().slice(0, 10);
     if (body.editable && (body.days || []).some(day => day.date === todayIso)) {
@@ -1079,10 +1210,10 @@
         const dayTarget = (body.days || []).find(day => day.date === selectedDate);
         const previousQt = !!(dayTarget && dayTarget.qtChecked);
         const previousAttitude = !!(dayTarget && dayTarget.attitudeChecked);
-        const previousNote = !!(dayTarget && dayTarget.noteChecked);
+        const previousNoteCount = Number(dayTarget && dayTarget.noteCount ? dayTarget.noteCount : 0);
         const qtChecked = document.getElementById("toggleQt").checked;
         const attitudeChecked = document.getElementById("toggleAttitude").checked;
-        const noteChecked = document.getElementById("toggleNote").checked;
+        const noteCount = getCurrentNoteCount();
         await requestWithTeacherAuth("/api/teacher/check", {
           method: "POST",
           body: JSON.stringify({
@@ -1091,21 +1222,18 @@
             date: selectedDate,
             qtChecked,
             attitudeChecked,
-            noteChecked
+            noteCount
           })
         });
         if (dayTarget) {
           dayTarget.qtChecked = qtChecked;
           dayTarget.attitudeChecked = attitudeChecked;
-          dayTarget.noteChecked = noteChecked;
+          dayTarget.noteCount = noteCount;
         }
         baseQt = qtChecked;
         baseAttitude = attitudeChecked;
-        baseNote = noteChecked;
-        selectedQt = qtChecked;
-        selectedAttitude = attitudeChecked;
-        selectedNote = noteChecked;
-        adjustSummaryAfterSave(previousQt, previousAttitude, previousNote, qtChecked, attitudeChecked, noteChecked);
+        baseNoteCount = noteCount;
+        adjustSummaryAfterSave(previousQt, previousAttitude, previousNoteCount, qtChecked, attitudeChecked, noteCount);
         renderCalendarOnly();
         updateSaveButtonState();
         showToast("저장되었습니다.");

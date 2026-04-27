@@ -20,6 +20,12 @@ public class DevotionCheckColumnInitializer {
     @PostConstruct
     public void ensureDevotionCheckColumns() {
         ensureColumn("devotion_checks", "attitude_checked", "boolean not null default false");
+        ensureColumn("devotion_checks", "note_count", "integer not null default 0");
+        jdbcTemplate.execute("""
+                update devotion_checks
+                set note_count = case when note_checked = true then 1 else 0 end
+                where note_count is null or (note_count = 0 and note_checked = true)
+                """);
     }
 
     private void ensureColumn(String tableName, String columnName, String columnDefinition) {

@@ -1,6 +1,7 @@
 package com.church.qt.teacherapp;
 
 import com.church.qt.domain.devotion.DevotionCheckRepository;
+import com.church.qt.domain.devotion.DevotionCheck;
 import com.church.qt.domain.student.Student;
 import com.church.qt.domain.student.StudentRepository;
 import com.church.qt.domain.teacher.Teacher;
@@ -69,8 +70,8 @@ class TeacherAppServiceIntegrationTest {
     private DevotionCheckRepository devotionCheckRepository;
 
     @Test
-    @DisplayName("전체 학생 체크 권한이 있는 교사는 연도 전체 학생 목록을 조회할 수 있다")
-    void getStudents_withGlobalCheckAccess_returnsAllYearStudents() {
+    @DisplayName("교사 학생 목록은 권한과 무관하게 연도 전체 학생을 조회하고 담당 반 여부를 함께 반환한다")
+    void getStudents_returnsAllYearStudentsWithMyClassFlag() {
         Teacher teacher = saveTeacher("global_teacher", TeacherRole.TEACHER, true, true);
         Year year = saveYear(2026);
         saveYearTeacher(year, teacher);
@@ -88,11 +89,14 @@ class TeacherAppServiceIntegrationTest {
         assertEquals(2, responses.size());
         assertTrue(responses.stream().anyMatch(item -> item.studentName().equals("배정학생")));
         assertTrue(responses.stream().anyMatch(item -> item.studentName().equals("미배정학생")));
+        assertTrue(responses.stream().filter(item -> item.studentName().equals("배정학생")).findFirst().orElseThrow().myClassStudent());
+        assertFalse(responses.stream().filter(item -> item.studentName().equals("미배정학생")).findFirst().orElseThrow().myClassStudent());
+        assertEquals("은혜반", responses.stream().filter(item -> item.studentName().equals("배정학생")).findFirst().orElseThrow().myClassName());
     }
 
     @Test
-    @DisplayName("전체 학생 체크 권한이 없는 교사는 담당 학생만 조회한다")
-    void getStudents_withoutGlobalCheckAccess_returnsAssignedStudentsOnly() {
+    @DisplayName("전체 학생 체크 권한이 없는 교사도 연도 전체 학생 목록을 조회할 수 있다")
+    void getStudents_withoutGlobalCheckAccess_returnsAllStudents() {
         Teacher teacher = saveTeacher("assigned_teacher", TeacherRole.TEACHER, true, false);
         Year year = saveYear(2027);
         saveYearTeacher(year, teacher);
@@ -107,13 +111,15 @@ class TeacherAppServiceIntegrationTest {
 
         List<TeacherStudentListResponse> responses = teacherAppService.getStudents(teacher.getId(), year.getYearValue());
 
-        assertEquals(1, responses.size());
-        assertEquals("담당학생", responses.get(0).studentName());
+        assertEquals(2, responses.size());
+        assertTrue(responses.stream().anyMatch(item -> item.studentName().equals("담당학생") && item.myClassStudent()));
+        assertTrue(responses.stream().anyMatch(item -> item.studentName().equals("다른학생") && !item.myClassStudent()));
+        assertEquals("사랑반", responses.stream().filter(item -> item.studentName().equals("담당학생")).findFirst().orElseThrow().myClassName());
     }
 
     @Test
-    @DisplayName("ADMIN 역할만으로는 연도 전체 학생 목록을 조회하지 않는다")
-    void getStudents_withAdminRoleOnly_returnsAssignedStudentsOnly() {
+    @DisplayName("ADMIN 역할만 있는 교사도 연도 전체 학생 목록을 조회하고 담당 반 여부로 구분한다")
+    void getStudents_withAdminRoleOnly_returnsAllStudents() {
         Teacher teacher = saveTeacher("admin_teacher_only", TeacherRole.ADMIN, true, false);
         Year year = saveYear(2030);
         saveYearTeacher(year, teacher);
@@ -128,13 +134,14 @@ class TeacherAppServiceIntegrationTest {
 
         List<TeacherStudentListResponse> responses = teacherAppService.getStudents(teacher.getId(), year.getYearValue());
 
-        assertEquals(1, responses.size());
-        assertEquals("관리자담당학생", responses.get(0).studentName());
+        assertEquals(2, responses.size());
+        assertTrue(responses.stream().anyMatch(item -> item.studentName().equals("관리자담당학생") && item.myClassStudent()));
+        assertTrue(responses.stream().anyMatch(item -> item.studentName().equals("관리자다른학생") && !item.myClassStudent()));
     }
 
     @Test
-    @DisplayName("전체 학생 체크 권한이 있는 교사는 담당 반이 아니어도 체크할 수 있다")
-    void updateCheck_withGlobalCheckAccess_allowsUnassignedStudent() {
+    @DisplayName("전체 학생 체크 권한이 있는 교사는 다른 반 학생의 QT를 체크할 수 있다")
+    void updateCheck_withGlobalCheckAccess_allowsQtForUnassignedStudent() {
         Teacher teacher = saveTeacher("check_all_teacher", TeacherRole.TEACHER, true, true);
         Year year = saveYear(2028);
         saveYearTeacher(year, teacher);
@@ -146,15 +153,15 @@ class TeacherAppServiceIntegrationTest {
 
         teacherAppService.updateCheck(
                 teacher.getId(),
-                new TeacherCheckRequest(student.getId(), year.getYearValue(), LocalDate.of(2028, 3, 15), true, false, false)
+                new TeacherCheckRequest(student.getId(), year.getYearValue(), LocalDate.of(2028, 3, 15), true, false, 0)
         );
 
         assertEquals(1L, devotionCheckRepository.countByYearIdAndStudentIdAndQtCheckedTrue(year.getId(), student.getId()));
     }
 
     @Test
-    @DisplayName("전체 학생 체크 권한이 없는 교사는 담당 반이 아니면 체크할 수 없다")
-    void updateCheck_withoutGlobalCheckAccess_rejectsUnassignedStudent() {
+    @DisplayName("전체 학생 체크 권한이 없는 교사는 다른 반 학생의 QT를 체크할 수 없다")
+    void updateCheck_withoutGlobalCheckAccess_rejectsUnassignedQt() {
         Teacher teacher = saveTeacher("no_check_all_teacher", TeacherRole.TEACHER, true, false);
         Year year = saveYear(2029);
         saveYearTeacher(year, teacher);
@@ -168,12 +175,101 @@ class TeacherAppServiceIntegrationTest {
                 IllegalArgumentException.class,
                 () -> teacherAppService.updateCheck(
                         teacher.getId(),
-                        new TeacherCheckRequest(student.getId(), year.getYearValue(), LocalDate.of(2029, 3, 16), true, false, false)
+                        new TeacherCheckRequest(student.getId(), year.getYearValue(), LocalDate.of(2029, 3, 16), true, false, 0)
                 )
         );
 
-        assertEquals("해당 학생은 이 교사가 관리하는 학생이 아닙니다.", exception.getMessage());
+        assertEquals("이 학생의 QT를 체크할 수 없습니다.", exception.getMessage());
         assertFalse(devotionCheckRepository.findByYearIdAndStudentIdAndCheckDate(year.getId(), student.getId(), LocalDate.of(2029, 3, 16)).isPresent());
+    }
+
+    @Test
+    @DisplayName("전체 학생 체크 권한이 없는 교사도 다른 반 학생의 태도는 체크할 수 있다")
+    void updateCheck_withoutGlobalCheckAccess_allowsAttitudeForUnassignedStudent() {
+        Teacher teacher = saveTeacher("attitude_teacher", TeacherRole.TEACHER, true, false);
+        Year year = saveYear(2033);
+        saveYearTeacher(year, teacher);
+        YearClass otherClass = saveYearClass(year, "화평반");
+
+        Student student = saveStudent("태도학생");
+        saveYearStudent(year, student, "4");
+        saveYearClassStudent(year, otherClass, student);
+
+        teacherAppService.updateCheck(
+                teacher.getId(),
+                new TeacherCheckRequest(student.getId(), year.getYearValue(), LocalDate.of(2033, 3, 12), false, true, 0)
+        );
+
+        assertEquals(1L, devotionCheckRepository.countByYearIdAndStudentIdAndAttitudeCheckedTrue(year.getId(), student.getId()));
+    }
+
+    @Test
+    @DisplayName("다른 반 학생은 태도만 체크할 수 있다")
+    void updateCheck_withGlobalCheckAccess_allowsAttitudeOnlyForUnassignedStudent() {
+        Teacher teacher = saveTeacher("attitude_only_teacher", TeacherRole.TEACHER, true, true);
+        Year year = saveYear(2031);
+        saveYearTeacher(year, teacher);
+        YearClass otherClass = saveYearClass(year, "믿음반");
+
+        Student student = saveStudent("태도전용학생");
+        saveYearStudent(year, student, "5");
+        saveYearClassStudent(year, otherClass, student);
+
+        teacherAppService.updateCheck(
+                teacher.getId(),
+                new TeacherCheckRequest(student.getId(), year.getYearValue(), LocalDate.of(2031, 3, 10), false, true, 0)
+        );
+
+        assertEquals(1L, devotionCheckRepository.countByYearIdAndStudentIdAndAttitudeCheckedTrue(year.getId(), student.getId()));
+        assertEquals(0L, devotionCheckRepository.countByYearIdAndStudentIdAndQtCheckedTrue(year.getId(), student.getId()));
+        assertEquals(0L, devotionCheckRepository.sumNoteCountByYearIdAndStudentId(year.getId(), student.getId()));
+    }
+
+    @Test
+    @DisplayName("전체 학생 체크 권한이 있는 교사는 다른 반 학생의 노트 체크는 할 수 없다")
+    void updateCheck_withGlobalCheckAccess_rejectsNoteForUnassignedStudent() {
+        Teacher teacher = saveTeacher("reject_qt_note_teacher", TeacherRole.TEACHER, true, true);
+        Year year = saveYear(2032);
+        saveYearTeacher(year, teacher);
+        YearClass otherClass = saveYearClass(year, "평안반");
+
+        Student student = saveStudent("제한학생");
+        saveYearStudent(year, student, "6");
+        saveYearClassStudent(year, otherClass, student);
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> teacherAppService.updateCheck(
+                        teacher.getId(),
+                        new TeacherCheckRequest(student.getId(), year.getYearValue(), LocalDate.of(2032, 3, 11), false, true, 1)
+                )
+        );
+
+        assertEquals("이 학생의 노트를 체크할 수 없습니다.", exception.getMessage());
+        assertFalse(devotionCheckRepository.findByYearIdAndStudentIdAndCheckDate(year.getId(), student.getId(), LocalDate.of(2032, 3, 11)).isPresent());
+    }
+
+    @Test
+    @DisplayName("ADMIN 역할은 다른 반 학생도 QT와 노트를 모두 체크할 수 있다")
+    void updateCheck_withAdminRole_allowsFullCheckForUnassignedStudent() {
+        Teacher teacher = saveTeacher("admin_full_teacher", TeacherRole.ADMIN, true, false);
+        Year year = saveYear(2034);
+        saveYearTeacher(year, teacher);
+        YearClass otherClass = saveYearClass(year, "기쁨반");
+
+        Student student = saveStudent("관리자전체학생");
+        saveYearStudent(year, student, "6");
+        saveYearClassStudent(year, otherClass, student);
+
+        teacherAppService.updateCheck(
+                teacher.getId(),
+                new TeacherCheckRequest(student.getId(), year.getYearValue(), LocalDate.of(2034, 3, 13), true, true, 3)
+        );
+
+        DevotionCheck check = devotionCheckRepository.findByYearIdAndStudentIdAndCheckDate(year.getId(), student.getId(), LocalDate.of(2034, 3, 13)).orElseThrow();
+        assertTrue(Boolean.TRUE.equals(check.getQtChecked()));
+        assertTrue(Boolean.TRUE.equals(check.getAttitudeChecked()));
+        assertEquals(3, check.getNoteCount());
     }
 
     private Teacher saveTeacher(String loginId, TeacherRole role, boolean active, boolean canCheckAllStudents) {

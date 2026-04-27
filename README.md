@@ -105,5 +105,6 @@ java -jar build/libs/*.jar
 
 - 관리자 정적 파일: `src/main/resources/static/admin.html`, `admin.js`, `admin.css`
 - 앱 정적 파일: `src/main/resources/static/app.html`, `app.js`, `app.css`
+- 안드로이드 WebView 앱 프로젝트: `android-webview/README.md`
 - 관리자 메인 스타일 조정은 대부분 `admin.css` 모바일 구간(`@media (max-width: 720px)`)에 모여 있습니다.
 - 관리자 UI는 연도별 명단 관리와 배정 관리 중심으로 계속 다듬어진 상태라, 세부 동작은 `PROJECT_CONTEXT.md`와 `API_STATUS.md`를 같이 보는 편이 안전합니다.

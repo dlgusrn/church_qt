@@ -8,6 +8,6 @@ public record TeacherCheckRequest(
         LocalDate date,
         boolean qtChecked,
         boolean attitudeChecked,
-        boolean noteChecked
+        int noteCount
 ) {
 }

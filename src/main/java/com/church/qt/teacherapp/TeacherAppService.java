@@ -30,6 +30,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -67,13 +68,17 @@ public class TeacherAppService {
 
     @Transactional(readOnly = true)
     public List<TeacherStudentListResponse> getStudents(Long teacherId, Integer yearValue) {
-        Teacher teacher = teacherRepository.findById(teacherId)
+        teacherRepository.findById(teacherId)
                 .orElseThrow(() -> new IllegalArgumentException("교사가 존재하지 않습니다."));
-
-        if (hasGlobalCheckAccess(teacher)) {
-            return yearStudentRepository.findTeacherStudentsForYear(yearValue);
-        }
-        return yearClassTeacherRepository.findTeacherStudents(teacherId, yearValue);
+        String myClassName = yearClassTeacherRepository.findClassNamesByTeacherIdAndYearValue(teacherId, yearValue)
+                .stream()
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+        return yearStudentRepository.findTeacherStudentsForYear(teacherId, yearValue)
+                .stream()
+                .map(item -> item.withMyClassName(item.myClassStudent() ? myClassName : null))
+                .toList();
     }
 
     @Transactional
@@ -123,10 +128,10 @@ public class TeacherAppService {
             throw new IllegalArgumentException("해당 학생은 이 연도에 속하지 않습니다.");
         }
 
-        if (!hasGlobalCheckAccess(teacher)
-                && !yearClassTeacherRepository.existsManageableStudent(teacherId, request.studentId(), request.year())) {
-            throw new IllegalArgumentException("해당 학생은 이 교사가 관리하는 학생이 아닙니다.");
-        }
+        boolean myClassStudent = yearClassTeacherRepository.existsManageableStudent(teacherId, request.studentId(), request.year());
+        boolean privilegedRole = hasPrivilegedCheckAccess(teacher);
+        boolean canEditQt = myClassStudent || privilegedRole || hasGlobalCheckAccess(teacher);
+        boolean canEditNote = myClassStudent || privilegedRole;
 
         Student student = studentRepository.findById(request.studentId())
                 .orElseThrow(() -> new IllegalArgumentException("학생이 존재하지 않습니다."));
@@ -136,9 +141,17 @@ public class TeacherAppService {
                 .orElse(null);
         boolean previousQtChecked = check != null && Boolean.TRUE.equals(check.getQtChecked());
         boolean previousAttitudeChecked = check != null && Boolean.TRUE.equals(check.getAttitudeChecked());
-        boolean previousNoteChecked = check != null && Boolean.TRUE.equals(check.getNoteChecked());
+        int previousNoteCount = check == null ? 0 : Math.max(0, check.getNoteCount());
 
-        if (!request.qtChecked() && !request.attitudeChecked() && !request.noteChecked()) {
+        if (!canEditQt && request.qtChecked() != previousQtChecked) {
+            throw new IllegalArgumentException("이 학생의 QT를 체크할 수 없습니다.");
+        }
+
+        if (!canEditNote && request.noteCount() != previousNoteCount) {
+            throw new IllegalArgumentException("이 학생의 노트를 체크할 수 없습니다.");
+        }
+
+        if (!request.qtChecked() && !request.attitudeChecked() && request.noteCount() <= 0) {
             if (check != null) {
                 devotionCheckRepository.delete(check);
                 auditLogService.record(
@@ -148,7 +161,7 @@ public class TeacherAppService {
                                 + ", studentId=" + student.getId()
                                 + ", studentName=" + student.getStudentName()
                                 + ", date=" + request.date()
-                                + ", before=qt:" + previousQtChecked + "|attitude:" + previousAttitudeChecked + "|note:" + previousNoteChecked
+                                + ", before=qt:" + previousQtChecked + "|attitude:" + previousAttitudeChecked + "|note:" + previousNoteCount
                 );
             }
             return;
@@ -161,13 +174,14 @@ public class TeacherAppService {
                     .checkDate(request.date())
                     .qtChecked(request.qtChecked())
                     .attitudeChecked(request.attitudeChecked())
-                    .noteChecked(request.noteChecked())
+                    .noteChecked(request.noteCount() > 0)
+                    .noteCount(request.noteCount())
                     .checkedByTeacher(teacher)
                     .build();
 
             devotionCheckRepository.save(check);
         } else {
-            check.updateChecks(request.qtChecked(), request.attitudeChecked(), request.noteChecked(), teacher);
+            check.updateChecks(request.qtChecked(), request.attitudeChecked(), request.noteCount(), teacher);
         }
         auditLogService.record(
                 teacherId,
@@ -176,8 +190,8 @@ public class TeacherAppService {
                         + ", studentId=" + student.getId()
                         + ", studentName=" + student.getStudentName()
                         + ", date=" + request.date()
-                        + ", before=qt:" + previousQtChecked + "|attitude:" + previousAttitudeChecked + "|note:" + previousNoteChecked
-                        + ", after=qt:" + request.qtChecked() + "|attitude:" + request.attitudeChecked() + "|note:" + request.noteChecked()
+                        + ", before=qt:" + previousQtChecked + "|attitude:" + previousAttitudeChecked + "|note:" + previousNoteCount
+                        + ", after=qt:" + request.qtChecked() + "|attitude:" + request.attitudeChecked() + "|note:" + request.noteCount()
         );
     }
 
@@ -206,6 +220,7 @@ public class TeacherAppService {
                 .subject(String.valueOf(teacher.getId()))
                 .claim("teacherName", teacher.getTeacherName())
                 .claim("role", teacher.getEffectiveRole().name())
+                .claim("canCheckAllStudents", teacher.canCheckAllStudents())
                 .claim("passwordChangeRequired", Boolean.TRUE.equals(teacher.getPasswordChangeRequired()))
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(accessTokenExpirationSeconds)))
@@ -234,5 +249,10 @@ public class TeacherAppService {
 
     private boolean hasGlobalCheckAccess(Teacher teacher) {
         return teacher.canCheckAllStudents();
+    }
+
+    private boolean hasPrivilegedCheckAccess(Teacher teacher) {
+        TeacherRole role = teacher.getEffectiveRole();
+        return role == TeacherRole.ADMIN || role == TeacherRole.PASTOR || role == TeacherRole.DIRECTOR;
     }
 }

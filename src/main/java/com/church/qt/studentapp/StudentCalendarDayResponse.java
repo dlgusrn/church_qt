@@ -4,7 +4,7 @@ public record StudentCalendarDayResponse(
         String date,
         boolean qtChecked,
         boolean attitudeChecked,
-        boolean noteChecked,
+        int noteCount,
         boolean isToday,
         boolean isBirthday
 ) {

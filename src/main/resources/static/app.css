@@ -892,11 +892,16 @@ button.day-cell {
   justify-content: space-between;
 }
 
+.day-icons-row.bottom.notes {
+  justify-content: center;
+  gap: 1px;
+}
+
 .day-marker {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 18px;
+  min-width: 16px;
   min-height: 18px;
   font-size: 14px;
   line-height: 1;
@@ -1013,6 +1018,36 @@ button.day-cell {
   font-size: 12px;
 }
 
+.teacher-student-section {
+  display: grid;
+  gap: 8px;
+}
+
+.teacher-student-section + .teacher-student-section {
+  margin-top: 8px;
+}
+
+.teacher-student-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px;
+}
+
+.teacher-student-section-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: #27425e;
+}
+
+.teacher-student-section-count {
+  color: #5d6d82;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .badge {
   border-radius: 999px;
   padding: 3px 7px;
@@ -1059,6 +1094,7 @@ button.day-cell {
 .switch-row {
   margin-top: 8px;
   display: flex;
+  align-items: center;
   gap: 14px;
 }
 
@@ -1078,6 +1114,44 @@ button.day-cell {
   flex-direction: row;
   align-items: center;
   gap: 6px;
+}
+
+.switch-divider {
+  color: #93a4b8;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.switch-row label.disabled {
+  opacity: 0.5;
+}
+
+.note-stepper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.note-stepper.disabled {
+  opacity: 0.5;
+}
+
+.note-stepper-label,
+.note-stepper-value {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+body[data-app-mode="teacher"] .note-stepper-btn {
+  min-width: 24px;
+  width: 24px;
+  height: 26px;
+  min-height: 26px;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1;
 }
 
 .save-row {

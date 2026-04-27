@@ -74,9 +74,19 @@ public interface YearStudentRepository extends JpaRepository<YearStudent, Long> 
             s.studentName,
             ys.schoolGrade,
             s.contactNumber,
+            case when exists (
+                select 1
+                from YearClassTeacher yct
+                join yct.yearClass yc
+                join YearClassStudent ycs on ycs.yearClass = yc and ycs.year = yc.year
+                where yct.teacher.id = :teacherId
+                  and yc.year = ys.year
+                  and yc.active = true
+                  and ycs.student = s
+            ) then true else false end,
             coalesce(sum(case when dc.qtChecked = true then 1 else 0 end), 0L),
             coalesce(sum(case when dc.attitudeChecked = true then 1 else 0 end), 0L),
-            coalesce(sum(case when dc.noteChecked = true then 1 else 0 end), 0L)
+            coalesce(sum(dc.noteCount), 0L)
         )
         from YearStudent ys
         join ys.student s
@@ -87,7 +97,7 @@ public interface YearStudentRepository extends JpaRepository<YearStudent, Long> 
         group by s.id, s.studentName, ys.schoolGrade, s.contactNumber
         order by ys.schoolGrade desc, s.studentName asc, s.id asc
     """)
-    List<TeacherStudentListResponse> findTeacherStudentsForYear(@Param("yearValue") Integer yearValue);
+    List<TeacherStudentListResponse> findTeacherStudentsForYear(@Param("teacherId") Long teacherId, @Param("yearValue") Integer yearValue);
 
     List<YearStudent> findByStudent(Student student);
 }

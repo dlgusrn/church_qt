@@ -87,14 +87,14 @@ public class StudentAppService {
                     DevotionCheck check = checkMap.get(date);
                     boolean qtChecked = check != null && Boolean.TRUE.equals(check.getQtChecked());
                     boolean attitudeChecked = check != null && Boolean.TRUE.equals(check.getAttitudeChecked());
-                    boolean noteChecked = check != null && Boolean.TRUE.equals(check.getNoteChecked());
+                    int noteCount = check == null ? 0 : Math.max(0, check.getNoteCount());
                     boolean isBirthday = birthdayMap.containsKey(date.toString());
 
                     return new StudentCalendarDayResponse(
                             date.toString(),
                             qtChecked,
                             attitudeChecked,
-                            noteChecked,
+                            noteCount,
                             date.equals(today),
                             isBirthday
                     );
@@ -103,7 +103,7 @@ public class StudentAppService {
 
         long qtCount = yearId == null ? 0L : devotionCheckRepository.countByYearIdAndStudentIdAndQtCheckedTrue(yearId, studentId);
         long attitudeCount = yearId == null ? 0L : devotionCheckRepository.countByYearIdAndStudentIdAndAttitudeCheckedTrue(yearId, studentId);
-        long noteCount = yearId == null ? 0L : devotionCheckRepository.countByYearIdAndStudentIdAndNoteCheckedTrue(yearId, studentId);
+        long noteCount = yearId == null ? 0L : devotionCheckRepository.sumNoteCountByYearIdAndStudentId(yearId, studentId);
 
         return new StudentCalendarResponse(
                 student.getId(),
