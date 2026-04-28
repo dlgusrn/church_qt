@@ -612,9 +612,258 @@
     navigate("/app/teacher/login");
   }
 
+  function cleanupTeacherMenuListeners() {
+    if (teacherMenuOutsideClickHandler) {
+      document.removeEventListener("click", teacherMenuOutsideClickHandler);
+      teacherMenuOutsideClickHandler = null;
+    }
+    if (teacherMenuEscapeHandler) {
+      document.removeEventListener("keydown", teacherMenuEscapeHandler);
+      teacherMenuEscapeHandler = null;
+    }
+  }
+
+  function formatTeacherDateTime(value) {
+    if (!value) return "-";
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return String(value);
+    }
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, "0");
+    const day = String(parsed.getDate()).padStart(2, "0");
+    const hour = String(parsed.getHours()).padStart(2, "0");
+    const minute = String(parsed.getMinutes()).padStart(2, "0");
+    return `${year}.${month}.${day} ${hour}:${minute}`;
+  }
+
+  function buildTeacherTabMarkup(activeTab, year) {
+    return `
+      <nav class="teacher-tab-nav" aria-label="교사 메인 메뉴">
+        <button class="teacher-tab-btn ${activeTab === "students" ? "active" : ""}" type="button" data-target="/app/teacher/students?year=${year}">학생명단</button>
+        <button class="teacher-tab-btn ${activeTab === "meeting-notes" ? "active" : ""}" type="button" data-target="/app/teacher/meeting-notes?year=${year}">회의록</button>
+      </nav>
+    `;
+  }
+
+  function buildTeacherMenuMarkup() {
+    return `
+      <div class="teacher-toolbar-actions teacher-menu">
+        <button
+          id="btnTeacherMenu"
+          class="icon-btn teacher-menu-trigger"
+          type="button"
+          aria-label="교사 메뉴 열기"
+          aria-haspopup="menu"
+          aria-expanded="false"
+        >
+          <span class="teacher-menu-icon" aria-hidden="true">👤</span>
+        </button>
+        <div id="teacherMenuDropdown" class="teacher-menu-dropdown hidden" role="menu">
+          <button id="btnTeacherChangePassword" class="teacher-menu-item teacher-password-btn" type="button" role="menuitem">비밀번호 변경</button>
+          <button id="btnTeacherLogout" class="teacher-menu-item teacher-toolbar-logout" type="button" role="menuitem">로그아웃</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function bindTeacherShellActions() {
+    cleanupTeacherMenuListeners();
+
+    appRoot.querySelectorAll(".teacher-tab-btn").forEach(button => {
+      button.addEventListener("click", function () {
+        const target = String(button.dataset.target || "").trim();
+        if (target) {
+          navigate(target);
+        }
+      });
+    });
+
+    const teacherMenu = document.querySelector(".teacher-menu");
+    const teacherMenuButton = document.getElementById("btnTeacherMenu");
+    const teacherMenuDropdown = document.getElementById("teacherMenuDropdown");
+    if (!teacherMenu || !teacherMenuButton || !teacherMenuDropdown) {
+      return;
+    }
+
+    function closeTeacherMenu() {
+      teacherMenuDropdown.classList.add("hidden");
+      teacherMenuButton.setAttribute("aria-expanded", "false");
+    }
+
+    function toggleTeacherMenu() {
+      const shouldOpen = teacherMenuDropdown.classList.contains("hidden");
+      teacherMenuDropdown.classList.toggle("hidden", !shouldOpen);
+      teacherMenuButton.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+    }
+
+    teacherMenuButton.addEventListener("click", function (event) {
+      event.stopPropagation();
+      toggleTeacherMenu();
+    });
+
+    teacherMenuOutsideClickHandler = function (event) {
+      if (!teacherMenu.contains(event.target)) {
+        closeTeacherMenu();
+      }
+    };
+    document.addEventListener("click", teacherMenuOutsideClickHandler);
+
+    teacherMenuEscapeHandler = function (event) {
+      if (event.key === "Escape") {
+        closeTeacherMenu();
+      }
+    };
+    document.addEventListener("keydown", teacherMenuEscapeHandler);
+
+    document.getElementById("btnTeacherChangePassword").addEventListener("click", function () {
+      closeTeacherMenu();
+      navigate("/app/teacher/password");
+    });
+    document.getElementById("btnTeacherLogout").addEventListener("click", function () {
+      closeTeacherMenu();
+      teacherLogout();
+    });
+  }
+
+  function renderInlineMarkdown(text) {
+    return escapeHtml(text)
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+      .replace(/`([^`]+)`/g, "<code>$1</code>")
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/~~([^~]+)~~/g, "<del>$1</del>")
+      .replace(/\*([^*]+)\*/g, "<em>$1</em>");
+  }
+
+  function renderMarkdown(markdown) {
+    const source = String(markdown || "").replace(/\r\n?/g, "\n");
+    if (!source.trim()) {
+      return '<div class="markdown-empty">내용이 없습니다.</div>';
+    }
+
+    const html = [];
+    const lines = source.split("\n");
+    let paragraph = [];
+    let listType = null;
+    let listItems = [];
+    let inCodeBlock = false;
+    let codeLines = [];
+
+    function flushParagraph() {
+      if (!paragraph.length) return;
+      html.push(`<p>${paragraph.map(renderInlineMarkdown).join("<br />")}</p>`);
+      paragraph = [];
+    }
+
+    function flushList() {
+      if (!listType) return;
+      html.push(`<${listType} class="markdown-list">${listItems.join("")}</${listType}>`);
+      listType = null;
+      listItems = [];
+    }
+
+    function flushCodeBlock() {
+      if (!codeLines.length) return;
+      html.push(`<pre class="markdown-code"><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
+      codeLines = [];
+    }
+
+    lines.forEach(line => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("```")) {
+        flushParagraph();
+        flushList();
+        if (inCodeBlock) {
+          flushCodeBlock();
+          inCodeBlock = false;
+        } else {
+          inCodeBlock = true;
+        }
+        return;
+      }
+
+      if (inCodeBlock) {
+        codeLines.push(line);
+        return;
+      }
+
+      if (!trimmed) {
+        flushParagraph();
+        flushList();
+        return;
+      }
+
+      const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
+      if (headingMatch) {
+        flushParagraph();
+        flushList();
+        const level = Math.min(6, headingMatch[1].length);
+        html.push(`<h${level}>${renderInlineMarkdown(headingMatch[2])}</h${level}>`);
+        return;
+      }
+
+      const checkListMatch = trimmed.match(/^[-*]\s+\[([ xX])\]\s+(.+)$/);
+      if (checkListMatch) {
+        flushParagraph();
+        if (listType !== "ul") {
+          flushList();
+          listType = "ul";
+        }
+        listItems.push(`
+          <li class="markdown-check-item">
+            <span class="markdown-check-box">${checkListMatch[1].toLowerCase() === "x" ? "☑" : "☐"}</span>
+            <span>${renderInlineMarkdown(checkListMatch[2])}</span>
+          </li>
+        `);
+        return;
+      }
+
+      const unorderedMatch = trimmed.match(/^[-*]\s+(.+)$/);
+      if (unorderedMatch) {
+        flushParagraph();
+        if (listType !== "ul") {
+          flushList();
+          listType = "ul";
+        }
+        listItems.push(`<li>${renderInlineMarkdown(unorderedMatch[1])}</li>`);
+        return;
+      }
+
+      const orderedMatch = trimmed.match(/^\d+\.\s+(.+)$/);
+      if (orderedMatch) {
+        flushParagraph();
+        if (listType !== "ol") {
+          flushList();
+          listType = "ol";
+        }
+        listItems.push(`<li>${renderInlineMarkdown(orderedMatch[1])}</li>`);
+        return;
+      }
+
+      const quoteMatch = trimmed.match(/^>\s?(.+)$/);
+      if (quoteMatch) {
+        flushParagraph();
+        flushList();
+        html.push(`<blockquote class="markdown-quote">${renderInlineMarkdown(quoteMatch[1])}</blockquote>`);
+        return;
+      }
+
+      paragraph.push(trimmed);
+    });
+
+    flushParagraph();
+    flushList();
+    if (inCodeBlock) {
+      flushCodeBlock();
+    }
+
+    return `<div class="markdown-body">${html.join("")}</div>`;
+  }
+
   async function renderTeacherPasswordScreen() {
     setAppMode("teacher");
     clearError();
+    cleanupTeacherMenuListeners();
     setHeaderVisible(true);
     setKickerVisible(false);
     setTitle("비밀번호 변경");
@@ -703,6 +952,7 @@
   async function renderTeacherLoginScreen() {
     setAppMode("teacher");
     clearError();
+    cleanupTeacherMenuListeners();
     setHeaderVisible(false);
     setKickerVisible(true);
     setTitle("");
@@ -769,6 +1019,7 @@
   async function renderTeacherStudentsScreen() {
     setAppMode("teacher");
     clearError();
+    cleanupTeacherMenuListeners();
     setHeaderVisible(false);
     setKickerVisible(false);
     setTitle("");
@@ -796,78 +1047,16 @@
         <div class="simple-hero teacher-student-hero">
           <div class="teacher-student-hero-head">
             <h2 class="simple-title">${escapeHtml(teacherName)} 선생님, 안녕하세요.</h2>
-            <div class="teacher-toolbar-actions teacher-menu">
-              <button
-                id="btnTeacherMenu"
-                class="icon-btn teacher-menu-trigger"
-                type="button"
-                aria-label="교사 메뉴 열기"
-                aria-haspopup="menu"
-                aria-expanded="false"
-              >
-                <span class="teacher-menu-icon" aria-hidden="true">👤</span>
-              </button>
-              <div id="teacherMenuDropdown" class="teacher-menu-dropdown hidden" role="menu">
-                <button id="btnTeacherChangePassword" class="teacher-menu-item teacher-password-btn" type="button" role="menuitem">비밀번호 변경</button>
-                <button id="btnTeacherLogout" class="teacher-menu-item teacher-toolbar-logout" type="button" role="menuitem">로그아웃</button>
-              </div>
-            </div>
+            ${buildTeacherMenuMarkup()}
           </div>
           <p class="simple-copy">체크할 학생을 선택해주세요.</p>
         </div>
+        ${buildTeacherTabMarkup("students", year)}
         <div id="teacherStudentList" class="list" style="margin-top:10px;"></div>
       </section>
     `;
 
-    const teacherMenu = document.querySelector(".teacher-menu");
-    const teacherMenuButton = document.getElementById("btnTeacherMenu");
-    const teacherMenuDropdown = document.getElementById("teacherMenuDropdown");
-
-    if (teacherMenuOutsideClickHandler) {
-      document.removeEventListener("click", teacherMenuOutsideClickHandler);
-    }
-    if (teacherMenuEscapeHandler) {
-      document.removeEventListener("keydown", teacherMenuEscapeHandler);
-    }
-
-    function closeTeacherMenu() {
-      teacherMenuDropdown.classList.add("hidden");
-      teacherMenuButton.setAttribute("aria-expanded", "false");
-    }
-
-    function toggleTeacherMenu() {
-      const shouldOpen = teacherMenuDropdown.classList.contains("hidden");
-      teacherMenuDropdown.classList.toggle("hidden", !shouldOpen);
-      teacherMenuButton.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
-    }
-
-    teacherMenuButton.addEventListener("click", function (event) {
-      event.stopPropagation();
-      toggleTeacherMenu();
-    });
-
-    teacherMenuOutsideClickHandler = function (event) {
-      if (!teacherMenu.contains(event.target)) {
-        closeTeacherMenu();
-      }
-    };
-    document.addEventListener("click", teacherMenuOutsideClickHandler);
-
-    teacherMenuEscapeHandler = function (event) {
-      if (event.key === "Escape") {
-        closeTeacherMenu();
-      }
-    };
-    document.addEventListener("keydown", teacherMenuEscapeHandler);
-
-    document.getElementById("btnTeacherChangePassword").addEventListener("click", function () {
-      closeTeacherMenu();
-      navigate("/app/teacher/password");
-    });
-    document.getElementById("btnTeacherLogout").addEventListener("click", function () {
-      closeTeacherMenu();
-      teacherLogout();
-    });
+    bindTeacherShellActions();
     function renderTeacherStudentList() {
       if (students.length === 0) {
         document.getElementById("teacherStudentList").innerHTML = `
@@ -879,10 +1068,14 @@
       const myClassStudents = sortByGradeName(students.filter(item => item.myClassStudent));
       const otherStudents = sortByGradeName(students.filter(item => !item.myClassStudent));
       const myClassTitle = String((myClassStudents[0] && myClassStudents[0].myClassName) || "").trim() || "본인 반";
-      const renderStudentCards = items => items.map(item => `
+      const renderStudentCards = (items, includeAssignedClassName) => items.map(item => `
         <button class="item-card teacher-student-card" data-student-id="${item.studentId}">
           <div class="item-head">
-            <span class="item-title">${escapeHtml(item.studentName || item.displayName)}</span>
+            <span class="item-title">${escapeHtml(
+              includeAssignedClassName && item.assignedClassName
+                ? `${item.studentName || item.displayName} (${item.assignedClassName})`
+                : (item.studentName || item.displayName)
+            )}</span>
           </div>
           <div class="item-sub">${escapeHtml(item.schoolGrade || "-")}학년</div>
           <div class="teacher-stats">
@@ -901,7 +1094,7 @@
               <h3 class="teacher-student-section-title">${escapeHtml(myClassTitle)}</h3>
               <span class="teacher-student-section-count">${myClassStudents.length}명</span>
             </div>
-            <div class="list">${renderStudentCards(myClassStudents)}</div>
+            <div class="list">${renderStudentCards(myClassStudents, false)}</div>
           </section>
         ` : ""}
         ${otherStudents.length ? `
@@ -910,7 +1103,7 @@
               <h3 class="teacher-student-section-title">주일학교 전체</h3>
               <span class="teacher-student-section-count">${otherStudents.length}명</span>
             </div>
-            <div class="list">${renderStudentCards(otherStudents)}</div>
+            <div class="list">${renderStudentCards(otherStudents, true)}</div>
           </section>
         ` : ""}
       `;
@@ -925,9 +1118,240 @@
     renderTeacherStudentList();
   }
 
+  async function renderTeacherMeetingNotesScreen() {
+    setAppMode("teacher");
+    clearError();
+    cleanupTeacherMenuListeners();
+    setHeaderVisible(false);
+    setKickerVisible(false);
+    setTitle("");
+    btnBack.classList.add("hidden");
+
+    const year = await resolveTeacherYear(new URLSearchParams(window.location.search).get("year"));
+    const notes = await requestWithTeacherAuth("/api/teacher/meeting-notes");
+    const teacherName = resolveTeacherDisplayName() || "선생님";
+
+    appRoot.innerHTML = `
+      <section class="panel">
+        <div class="simple-hero teacher-student-hero">
+          <div class="teacher-student-hero-head">
+            <h2 class="simple-title">${escapeHtml(teacherName)} 선생님, 안녕하세요.</h2>
+            ${buildTeacherMenuMarkup()}
+          </div>
+          <p class="simple-copy">회의 내용과 전달사항을 기록해두세요.</p>
+        </div>
+        ${buildTeacherTabMarkup("meeting-notes", year)}
+        <div id="teacherMeetingNoteList" class="meeting-note-list"></div>
+      </section>
+      <button id="btnOpenMeetingNoteCreate" class="teacher-fab" type="button" aria-label="회의록 추가">+</button>
+    `;
+
+    bindTeacherShellActions();
+
+    const listRoot = document.getElementById("teacherMeetingNoteList");
+    if (!Array.isArray(notes) || notes.length === 0) {
+      listRoot.innerHTML = '<div class="empty-state meeting-note-empty">작성된 회의록이 없습니다.</div>';
+    } else {
+      listRoot.innerHTML = notes.map(note => `
+        <button class="meeting-note-card" type="button" data-note-id="${note.noteId}">
+          <div class="meeting-note-card-head">
+            <strong class="meeting-note-card-title">${escapeHtml(note.title || "")}</strong>
+            <span class="meeting-note-card-date">${escapeHtml(formatTeacherDateTime(note.updatedAt))}</span>
+          </div>
+          <p class="meeting-note-card-preview">${escapeHtml(note.preview || "") || "내용 미리보기가 없습니다."}</p>
+          <div class="meeting-note-card-meta">
+            <span>${escapeHtml(note.authorName || "-")}</span>
+            <span>수정 ${escapeHtml(formatTeacherDateTime(note.updatedAt))}</span>
+          </div>
+        </button>
+      `).join("");
+    }
+
+    listRoot.querySelectorAll(".meeting-note-card").forEach(button => {
+      button.addEventListener("click", function () {
+        navigate(`/app/teacher/meeting-notes/${button.dataset.noteId}?year=${year}`);
+      });
+    });
+
+    document.getElementById("btnOpenMeetingNoteCreate").addEventListener("click", function () {
+      navigate(`/app/teacher/meeting-notes/new?year=${year}`);
+    });
+  }
+
+  async function renderTeacherMeetingNoteDetailScreen(meetingNoteId) {
+    setAppMode("teacher");
+    clearError();
+    cleanupTeacherMenuListeners();
+    setHeaderVisible(false);
+    setKickerVisible(false);
+    setTitle("");
+    btnBack.classList.add("hidden");
+
+    const year = await resolveTeacherYear(new URLSearchParams(window.location.search).get("year"));
+    const note = await requestWithTeacherAuth(`/api/teacher/meeting-notes/${meetingNoteId}`);
+    const teacherName = resolveTeacherDisplayName() || "선생님";
+
+    appRoot.innerHTML = `
+      <section class="panel">
+        <div class="simple-hero teacher-student-hero">
+          <div class="teacher-student-hero-head">
+            <h2 class="simple-title">${escapeHtml(teacherName)} 선생님, 안녕하세요.</h2>
+            ${buildTeacherMenuMarkup()}
+          </div>
+          <p class="simple-copy">회의록을 확인하고 필요한 내용을 공유하세요.</p>
+        </div>
+        ${buildTeacherTabMarkup("meeting-notes", year)}
+        <div class="meeting-note-detail-head">
+          <button id="btnBackMeetingNotes" class="ghost meeting-note-back" type="button">목록으로</button>
+          <span class="meeting-note-chip meeting-note-author-chip">${escapeHtml(note.authorName || "-")}</span>
+        </div>
+        <article class="meeting-note-detail-card">
+          <div class="meeting-note-detail-top">
+            <h3 class="meeting-note-detail-title">${escapeHtml(note.title || "")}</h3>
+            <div class="meeting-note-detail-meta">
+              <div>작성 : ${escapeHtml(formatTeacherDateTime(note.createdAt))}</div>
+              <div>수정 : ${escapeHtml(formatTeacherDateTime(note.updatedAt))}</div>
+            </div>
+          </div>
+          <div class="meeting-note-detail-divider"></div>
+          <div class="meeting-note-detail-body">
+            ${renderMarkdown(note.content)}
+          </div>
+        </article>
+      </section>
+    `;
+
+    bindTeacherShellActions();
+    document.getElementById("btnBackMeetingNotes").addEventListener("click", function () {
+      navigate(`/app/teacher/meeting-notes?year=${year}`);
+    });
+  }
+
+  async function renderTeacherMeetingNoteCreateScreen() {
+    setAppMode("teacher");
+    clearError();
+    cleanupTeacherMenuListeners();
+    setHeaderVisible(false);
+    setKickerVisible(false);
+    setTitle("");
+    btnBack.classList.add("hidden");
+
+    const year = await resolveTeacherYear(new URLSearchParams(window.location.search).get("year"));
+    const teacherName = resolveTeacherDisplayName() || "선생님";
+
+    appRoot.innerHTML = `
+      <section class="panel">
+        <div class="simple-hero teacher-student-hero">
+          <div class="teacher-student-hero-head">
+            <h2 class="simple-title">${escapeHtml(teacherName)} 선생님, 안녕하세요.</h2>
+            ${buildTeacherMenuMarkup()}
+          </div>
+          <p class="simple-copy">회의 내용을 마크다운 형식으로 정리할 수 있습니다.</p>
+        </div>
+        ${buildTeacherTabMarkup("meeting-notes", year)}
+        <div class="meeting-note-editor-top">
+          <button id="btnCancelMeetingNoteCreate" class="ghost meeting-note-back" type="button">목록으로</button>
+          <button id="btnSaveMeetingNote" type="button">저장</button>
+        </div>
+        <div class="meeting-note-editor-grid">
+          <label class="simple-field">
+            <span>제목</span>
+            <input id="meetingNoteTitle" type="text" maxlength="200" placeholder="예) 4월 4주차 교사 회의" />
+          </label>
+          <div class="meeting-note-editor-panels">
+            <div class="simple-field meeting-note-editor-panel">
+              <div class="meeting-note-field-head">
+                <span>내용</span>
+                <div class="meeting-note-help-wrap">
+                  <button id="btnToggleMeetingNoteMarkdownHelp" class="meeting-note-help-trigger" type="button" aria-expanded="false" aria-controls="meetingNoteMarkdownHelp" aria-label="마크다운 문법 도움말">도움말</button>
+                  <div id="meetingNoteMarkdownHelp" class="meeting-note-help-popover hidden">
+                    <div class="meeting-note-help-title">마크다운 문법</div>
+                    <div class="meeting-note-help-grid">
+                      <div class="meeting-note-help-row"><span class="meeting-note-chip"># 제목</span><span class="meeting-note-help-desc">큰 제목</span></div>
+                      <div class="meeting-note-help-row"><span class="meeting-note-chip">## 소제목</span><span class="meeting-note-help-desc">중간 제목</span></div>
+                      <div class="meeting-note-help-row"><span class="meeting-note-chip">- 목록</span><span class="meeting-note-help-desc">순서 없는 목록</span></div>
+                      <div class="meeting-note-help-row"><span class="meeting-note-chip">1. 순서 목록</span><span class="meeting-note-help-desc">번호 목록</span></div>
+                      <div class="meeting-note-help-row"><span class="meeting-note-chip">- [ ] 체크</span><span class="meeting-note-help-desc">체크리스트</span></div>
+                      <div class="meeting-note-help-row"><span class="meeting-note-chip">**굵게**</span><span class="meeting-note-help-desc">강조 텍스트</span></div>
+                      <div class="meeting-note-help-row"><span class="meeting-note-chip">*기울임*</span><span class="meeting-note-help-desc">기울임 텍스트</span></div>
+                      <div class="meeting-note-help-row"><span class="meeting-note-chip">> 인용문</span><span class="meeting-note-help-desc">인용 블록</span></div>
+                      <div class="meeting-note-help-row"><span class="meeting-note-chip">&#96;코드&#96;</span><span class="meeting-note-help-desc">짧은 코드</span></div>
+                      <div class="meeting-note-help-row"><span class="meeting-note-chip">&#96;&#96;&#96;코드&#96;&#96;&#96;</span><span class="meeting-note-help-desc">코드 블록</span></div>
+                      <div class="meeting-note-help-row"><span class="meeting-note-chip">[링크](https://...)</span><span class="meeting-note-help-desc">외부 링크</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <textarea id="meetingNoteContent" class="meeting-note-textarea" placeholder="# 안건&#10;- 출석 점검&#10;- 반별 전달사항&#10;&#10;## 기도제목&#10;> 이번 주 심방 대상"></textarea>
+            </div>
+            <section class="meeting-note-editor-panel">
+              <div class="meeting-note-preview-label">미리보기</div>
+              <div id="meetingNotePreview" class="meeting-note-preview"></div>
+            </section>
+          </div>
+        </div>
+      </section>
+    `;
+
+    bindTeacherShellActions();
+
+    const titleInput = document.getElementById("meetingNoteTitle");
+    const contentInput = document.getElementById("meetingNoteContent");
+    const previewRoot = document.getElementById("meetingNotePreview");
+    const helpPanel = document.getElementById("meetingNoteMarkdownHelp");
+    const helpButton = document.getElementById("btnToggleMeetingNoteMarkdownHelp");
+
+    function renderPreview() {
+      previewRoot.innerHTML = renderMarkdown(contentInput.value);
+    }
+
+    titleInput.addEventListener("keydown", function (event) {
+      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+        event.preventDefault();
+        document.getElementById("btnSaveMeetingNote").click();
+      }
+    });
+    contentInput.addEventListener("input", renderPreview);
+    contentInput.addEventListener("keydown", function (event) {
+      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+        event.preventDefault();
+        document.getElementById("btnSaveMeetingNote").click();
+      }
+    });
+    renderPreview();
+
+    helpButton.addEventListener("click", function () {
+      const shouldOpen = helpPanel.classList.contains("hidden");
+      helpPanel.classList.toggle("hidden", !shouldOpen);
+      helpButton.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+    });
+
+    document.getElementById("btnCancelMeetingNoteCreate").addEventListener("click", function () {
+      navigate(`/app/teacher/meeting-notes?year=${year}`);
+    });
+
+    document.getElementById("btnSaveMeetingNote").addEventListener("click", async function () {
+      try {
+        clearError();
+        const body = await requestWithTeacherAuth("/api/teacher/meeting-notes", {
+          method: "POST",
+          body: JSON.stringify({
+            title: titleInput.value,
+            content: contentInput.value
+          })
+        });
+        showToast("회의록이 저장되었습니다.");
+        navigate(`/app/teacher/meeting-notes/${body.noteId}?year=${year}`);
+      } catch (e) {
+        showError(normalizeErrorMessage(e.message));
+      }
+    });
+  }
+
   async function renderTeacherCalendarScreen(studentId) {
     setAppMode("teacher");
     clearError();
+    cleanupTeacherMenuListeners();
     const params = new URLSearchParams(window.location.search);
     const source = String(params.get("source") || "").trim().toLowerCase();
     const fromAdmin = source === "admin";
@@ -1302,6 +1726,15 @@
         return;
       }
 
+      if (path === "/app/teacher/meeting-notes") {
+        if (isTeacherPasswordChangeRequired()) {
+          navigate("/app/teacher/password");
+          return;
+        }
+        await renderTeacherMeetingNotesScreen();
+        return;
+      }
+
       if (path === "/app/teacher/password") {
         await renderTeacherPasswordScreen();
         return;
@@ -1310,6 +1743,25 @@
       const teacherCalendarMatch = path.match(/^\/app\/teacher\/students\/(\d+)\/calendar$/);
       if (teacherCalendarMatch) {
         await renderTeacherCalendarScreen(Number(teacherCalendarMatch[1]));
+        return;
+      }
+
+      const teacherMeetingNoteDetailMatch = path.match(/^\/app\/teacher\/meeting-notes\/(\d+)$/);
+      if (teacherMeetingNoteDetailMatch) {
+        if (isTeacherPasswordChangeRequired()) {
+          navigate("/app/teacher/password");
+          return;
+        }
+        await renderTeacherMeetingNoteDetailScreen(Number(teacherMeetingNoteDetailMatch[1]));
+        return;
+      }
+
+      if (path === "/app/teacher/meeting-notes/new") {
+        if (isTeacherPasswordChangeRequired()) {
+          navigate("/app/teacher/password");
+          return;
+        }
+        await renderTeacherMeetingNoteCreateScreen();
         return;
       }
 
@@ -1342,6 +1794,16 @@
     if (path === "/app/teacher/password") {
       const year = parseYear(new URLSearchParams(window.location.search).get("year"), new Date().getFullYear());
       navigate(`/app/teacher/students?year=${year}`);
+      return;
+    }
+    if (path === "/app/teacher/meeting-notes/new") {
+      const year = parseYear(new URLSearchParams(window.location.search).get("year"), new Date().getFullYear());
+      navigate(`/app/teacher/meeting-notes?year=${year}`);
+      return;
+    }
+    if (path.startsWith("/app/teacher/meeting-notes/")) {
+      const year = parseYear(new URLSearchParams(window.location.search).get("year"), new Date().getFullYear());
+      navigate(`/app/teacher/meeting-notes?year=${year}`);
       return;
     }
     history.back();

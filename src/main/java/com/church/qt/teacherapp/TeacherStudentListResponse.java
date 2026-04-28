@@ -8,6 +8,7 @@ public record TeacherStudentListResponse(
         String contactNumber,
         boolean myClassStudent,
         String myClassName,
+        String assignedClassName,
         long qtCount,
         long attitudeCount,
         long noteCount,
@@ -30,6 +31,7 @@ public record TeacherStudentListResponse(
                 contactNumber,
                 myClassStudent,
                 null,
+                null,
                 qtCount,
                 attitudeCount,
                 noteCount
@@ -43,6 +45,7 @@ public record TeacherStudentListResponse(
             String contactNumber,
             boolean myClassStudent,
             String myClassName,
+            String assignedClassName,
             long qtCount,
             long attitudeCount,
             long noteCount
@@ -55,6 +58,7 @@ public record TeacherStudentListResponse(
                 contactNumber,
                 myClassStudent,
                 myClassName,
+                assignedClassName,
                 qtCount,
                 attitudeCount,
                 noteCount,
@@ -71,6 +75,24 @@ public record TeacherStudentListResponse(
                 contactNumber,
                 myClassStudent,
                 myClassName,
+                assignedClassName,
+                qtCount,
+                attitudeCount,
+                noteCount,
+                totalCount
+        );
+    }
+
+    public TeacherStudentListResponse withClassNames(String myClassName, String assignedClassName) {
+        return new TeacherStudentListResponse(
+                studentId,
+                studentName,
+                schoolGrade,
+                displayName,
+                contactNumber,
+                myClassStudent,
+                myClassName,
+                assignedClassName,
                 qtCount,
                 attitudeCount,
                 noteCount,

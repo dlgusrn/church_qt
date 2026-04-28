@@ -27,6 +27,32 @@ public class TeacherAppController {
         return teacherAppService.getStudents(teacherId, year);
     }
 
+    @GetMapping("/meeting-notes")
+    public List<TeacherMeetingNoteListItemResponse> getMeetingNotes(
+            @RequestHeader("Authorization") String authorizationHeader
+    ) {
+        Long teacherId = teacherAppService.extractTeacherId(authorizationHeader);
+        return teacherAppService.getMeetingNotes(teacherId);
+    }
+
+    @GetMapping("/meeting-notes/{meetingNoteId}")
+    public TeacherMeetingNoteDetailResponse getMeetingNote(
+            @RequestHeader("Authorization") String authorizationHeader,
+            @PathVariable Long meetingNoteId
+    ) {
+        Long teacherId = teacherAppService.extractTeacherId(authorizationHeader);
+        return teacherAppService.getMeetingNote(teacherId, meetingNoteId);
+    }
+
+    @PostMapping("/meeting-notes")
+    public TeacherMeetingNoteDetailResponse createMeetingNote(
+            @RequestHeader("Authorization") String authorizationHeader,
+            @RequestBody CreateTeacherMeetingNoteRequest request
+    ) {
+        Long teacherId = teacherAppService.extractTeacherId(authorizationHeader);
+        return teacherAppService.createMeetingNote(teacherId, request);
+    }
+
     @PostMapping("/check")
     public void updateMyCheck(
             @RequestHeader("Authorization") String authorizationHeader,

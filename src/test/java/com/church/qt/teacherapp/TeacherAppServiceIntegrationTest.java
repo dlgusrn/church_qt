@@ -2,6 +2,7 @@ package com.church.qt.teacherapp;
 
 import com.church.qt.domain.devotion.DevotionCheckRepository;
 import com.church.qt.domain.devotion.DevotionCheck;
+import com.church.qt.domain.meetingnote.MeetingNoteRepository;
 import com.church.qt.domain.student.Student;
 import com.church.qt.domain.student.StudentRepository;
 import com.church.qt.domain.teacher.Teacher;
@@ -69,6 +70,9 @@ class TeacherAppServiceIntegrationTest {
     @Autowired
     private DevotionCheckRepository devotionCheckRepository;
 
+    @Autowired
+    private MeetingNoteRepository meetingNoteRepository;
+
     @Test
     @DisplayName("교사 학생 목록은 권한과 무관하게 연도 전체 학생을 조회하고 담당 반 여부를 함께 반환한다")
     void getStudents_returnsAllYearStudentsWithMyClassFlag() {
@@ -92,6 +96,7 @@ class TeacherAppServiceIntegrationTest {
         assertTrue(responses.stream().filter(item -> item.studentName().equals("배정학생")).findFirst().orElseThrow().myClassStudent());
         assertFalse(responses.stream().filter(item -> item.studentName().equals("미배정학생")).findFirst().orElseThrow().myClassStudent());
         assertEquals("은혜반", responses.stream().filter(item -> item.studentName().equals("배정학생")).findFirst().orElseThrow().myClassName());
+        assertEquals("은혜반", responses.stream().filter(item -> item.studentName().equals("배정학생")).findFirst().orElseThrow().assignedClassName());
     }
 
     @Test
@@ -115,6 +120,7 @@ class TeacherAppServiceIntegrationTest {
         assertTrue(responses.stream().anyMatch(item -> item.studentName().equals("담당학생") && item.myClassStudent()));
         assertTrue(responses.stream().anyMatch(item -> item.studentName().equals("다른학생") && !item.myClassStudent()));
         assertEquals("사랑반", responses.stream().filter(item -> item.studentName().equals("담당학생")).findFirst().orElseThrow().myClassName());
+        assertEquals("사랑반", responses.stream().filter(item -> item.studentName().equals("담당학생")).findFirst().orElseThrow().assignedClassName());
     }
 
     @Test
@@ -270,6 +276,55 @@ class TeacherAppServiceIntegrationTest {
         assertTrue(Boolean.TRUE.equals(check.getQtChecked()));
         assertTrue(Boolean.TRUE.equals(check.getAttitudeChecked()));
         assertEquals(3, check.getNoteCount());
+    }
+
+    @Test
+    @DisplayName("교사는 회의록을 작성하고 목록 및 상세 조회할 수 있다")
+    void meetingNote_createAndRead_success() {
+        Teacher teacher = saveTeacher("meeting_teacher", TeacherRole.TEACHER, true, false);
+
+        TeacherMeetingNoteDetailResponse created = teacherAppService.createMeetingNote(
+                teacher.getId(),
+                new CreateTeacherMeetingNoteRequest("주일 회의", "# 안건\n- 학생 심방\n- 반 운영")
+        );
+
+        assertEquals("주일 회의", created.title());
+        assertTrue(created.noteId() != null && created.noteId() > 0);
+
+        List<TeacherMeetingNoteListItemResponse> items = teacherAppService.getMeetingNotes(teacher.getId());
+
+        assertEquals(1, items.size());
+        assertEquals(created.noteId(), items.get(0).noteId());
+        assertEquals("meeting_teacher_name", items.get(0).authorName());
+        assertTrue(items.get(0).preview().contains("안건"));
+
+        TeacherMeetingNoteDetailResponse detail = teacherAppService.getMeetingNote(teacher.getId(), created.noteId());
+        assertEquals("# 안건\n- 학생 심방\n- 반 운영", detail.content());
+    }
+
+    @Test
+    @DisplayName("회의록 작성 시 제목과 내용은 필수다")
+    void meetingNote_create_requiresTitleAndContent() {
+        Teacher teacher = saveTeacher("meeting_teacher_required", TeacherRole.TEACHER, true, false);
+
+        IllegalArgumentException titleException = assertThrows(
+                IllegalArgumentException.class,
+                () -> teacherAppService.createMeetingNote(
+                        teacher.getId(),
+                        new CreateTeacherMeetingNoteRequest(" ", "내용")
+                )
+        );
+        assertEquals("제목을 입력하세요.", titleException.getMessage());
+
+        IllegalArgumentException contentException = assertThrows(
+                IllegalArgumentException.class,
+                () -> teacherAppService.createMeetingNote(
+                        teacher.getId(),
+                        new CreateTeacherMeetingNoteRequest("제목", " ")
+                )
+        );
+        assertEquals("내용을 입력하세요.", contentException.getMessage());
+        assertEquals(0, meetingNoteRepository.count());
     }
 
     private Teacher saveTeacher(String loginId, TeacherRole role, boolean active, boolean canCheckAllStudents) {

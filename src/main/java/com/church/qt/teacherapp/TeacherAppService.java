@@ -5,6 +5,8 @@ import com.church.qt.common.ChangePasswordRequest;
 import com.church.qt.common.PasswordPolicyValidator;
 import com.church.qt.domain.devotion.DevotionCheck;
 import com.church.qt.domain.devotion.DevotionCheckRepository;
+import com.church.qt.domain.meetingnote.MeetingNote;
+import com.church.qt.domain.meetingnote.MeetingNoteRepository;
 import com.church.qt.domain.student.Student;
 import com.church.qt.domain.student.StudentRepository;
 import com.church.qt.domain.teacher.Teacher;
@@ -12,6 +14,7 @@ import com.church.qt.domain.teacher.TeacherRole;
 import com.church.qt.domain.teacher.TeacherRepository;
 import com.church.qt.domain.year.Year;
 import com.church.qt.domain.year.YearRepository;
+import com.church.qt.domain.yearclass.YearClassStudent;
 import com.church.qt.domain.yearclass.YearClassStudentRepository;
 import com.church.qt.domain.yearclass.YearClassTeacherRepository;
 import com.church.qt.domain.yearstudent.YearStudentRepository;
@@ -29,7 +32,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 @Service
@@ -37,6 +42,7 @@ import java.util.Objects;
 public class TeacherAppService {
 
     private final DevotionCheckRepository devotionCheckRepository;
+    private final MeetingNoteRepository meetingNoteRepository;
     private final StudentRepository studentRepository;
     private final TeacherRepository teacherRepository;
     private final YearRepository yearRepository;
@@ -68,17 +74,60 @@ public class TeacherAppService {
 
     @Transactional(readOnly = true)
     public List<TeacherStudentListResponse> getStudents(Long teacherId, Integer yearValue) {
-        teacherRepository.findById(teacherId)
-                .orElseThrow(() -> new IllegalArgumentException("교사가 존재하지 않습니다."));
+        requireActiveTeacher(teacherId);
+        Year year = yearRepository.findByYearValue(yearValue)
+                .orElseThrow(() -> new IllegalArgumentException("연도가 존재하지 않습니다."));
         String myClassName = yearClassTeacherRepository.findClassNamesByTeacherIdAndYearValue(teacherId, yearValue)
                 .stream()
                 .filter(Objects::nonNull)
                 .findFirst()
                 .orElse(null);
-        return yearStudentRepository.findTeacherStudentsForYear(teacherId, yearValue)
+        List<TeacherStudentListResponse> students = yearStudentRepository.findTeacherStudentsForYear(teacherId, yearValue);
+        Map<Long, String> assignedClassNameByStudentId = loadAssignedClassNames(year.getId(), students);
+        return students
                 .stream()
-                .map(item -> item.withMyClassName(item.myClassStudent() ? myClassName : null))
+                .map(item -> item.withClassNames(
+                        item.myClassStudent() ? myClassName : null,
+                        assignedClassNameByStudentId.get(item.studentId())
+                ))
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<TeacherMeetingNoteListItemResponse> getMeetingNotes(Long teacherId) {
+        requireActiveTeacher(teacherId);
+        return meetingNoteRepository.findAllWithAuthorOrderByUpdatedAtDesc()
+                .stream()
+                .map(TeacherMeetingNoteListItemResponse::from)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public TeacherMeetingNoteDetailResponse getMeetingNote(Long teacherId, Long meetingNoteId) {
+        requireActiveTeacher(teacherId);
+        MeetingNote meetingNote = meetingNoteRepository.findDetailById(meetingNoteId)
+                .orElseThrow(() -> new IllegalArgumentException("회의록이 존재하지 않습니다."));
+        return TeacherMeetingNoteDetailResponse.from(meetingNote);
+    }
+
+    @Transactional
+    public TeacherMeetingNoteDetailResponse createMeetingNote(Long teacherId, CreateTeacherMeetingNoteRequest request) {
+        Teacher teacher = requireActiveTeacher(teacherId);
+        String title = requireMeetingNoteText(request.title(), "제목을 입력하세요.", 200);
+        String content = requireMeetingNoteText(request.content(), "내용을 입력하세요.", 20000);
+
+        MeetingNote meetingNote = meetingNoteRepository.save(MeetingNote.builder()
+                .title(title)
+                .content(content)
+                .createdByTeacher(teacher)
+                .build());
+
+        auditLogService.record(
+                teacherId,
+                "CREATE_MEETING_NOTE",
+                "meetingNoteId=" + meetingNote.getId() + ", title=" + meetingNote.getTitle()
+        );
+        return TeacherMeetingNoteDetailResponse.from(meetingNote);
     }
 
     @Transactional
@@ -245,6 +294,47 @@ public class TeacherAppService {
             throw new IllegalArgumentException(message);
         }
         return value;
+    }
+
+    private String requireMeetingNoteText(String value, String message, int maxLength) {
+        if (value == null || value.trim().isEmpty()) {
+            throw new IllegalArgumentException(message);
+        }
+        String normalized = value.trim();
+        if (normalized.length() > maxLength) {
+            throw new IllegalArgumentException("입력 길이가 너무 깁니다.");
+        }
+        return normalized;
+    }
+
+    private Teacher requireActiveTeacher(Long teacherId) {
+        Teacher teacher = teacherRepository.findById(teacherId)
+                .orElseThrow(() -> new IllegalArgumentException("교사가 존재하지 않습니다."));
+        if (!teacher.getActive()) {
+            throw new IllegalArgumentException("비활성화된 교사입니다.");
+        }
+        return teacher;
+    }
+
+    private Map<Long, String> loadAssignedClassNames(Long yearId, List<TeacherStudentListResponse> students) {
+        if (students.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> studentIds = students.stream()
+                .map(TeacherStudentListResponse::studentId)
+                .toList();
+        Map<Long, String> classNameByStudentId = new LinkedHashMap<>();
+        List<YearClassStudent> yearClassStudents = yearClassStudentRepository.findByYearIdAndStudentIdIn(yearId, studentIds);
+        for (YearClassStudent yearClassStudent : yearClassStudents) {
+            if (yearClassStudent.getStudent() == null || yearClassStudent.getYearClass() == null) {
+                continue;
+            }
+            classNameByStudentId.putIfAbsent(
+                    yearClassStudent.getStudent().getId(),
+                    yearClassStudent.getYearClass().getClassName()
+            );
+        }
+        return classNameByStudentId;
     }
 
     private boolean hasGlobalCheckAccess(Teacher teacher) {

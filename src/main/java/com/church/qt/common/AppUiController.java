@@ -51,6 +51,21 @@ public class AppUiController {
         return "forward:/app.html";
     }
 
+    @GetMapping("/app/teacher/meeting-notes")
+    public String teacherMeetingNotes() {
+        return "forward:/app.html";
+    }
+
+    @GetMapping("/app/teacher/meeting-notes/new")
+    public String teacherMeetingNoteNew() {
+        return "forward:/app.html";
+    }
+
+    @GetMapping("/app/teacher/meeting-notes/{meetingNoteId:\\d+}")
+    public String teacherMeetingNoteDetail() {
+        return "forward:/app.html";
+    }
+
     @GetMapping("/app/teacher/students/{studentId:\\d+}/calendar")
     public String teacherStudentCalendar() {
         return "forward:/app.html";

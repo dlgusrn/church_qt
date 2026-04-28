@@ -186,6 +186,11 @@ body[data-app-mode="teacher"] button {
   padding: 8px 10px;
 }
 
+body[data-app-mode="teacher"] .meeting-note-help-trigger {
+  min-height: 22px;
+  padding: 0;
+}
+
 body[data-app-mode="teacher"] .icon-btn {
   width: 30px;
   height: 30px;
@@ -1164,9 +1169,367 @@ body[data-app-mode="teacher"] .note-stepper-btn {
   flex: 1;
 }
 
+.teacher-tab-nav {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.teacher-tab-btn {
+  border: 1px solid #d4deea;
+  background: #f4f8fc;
+  color: #47627d;
+  border-radius: 12px;
+  font-weight: 700;
+}
+
+.teacher-tab-btn.active {
+  background: linear-gradient(135deg, #0b6ed0, #2f87dc);
+  color: #ffffff;
+  border-color: #0b6ed0;
+  box-shadow: 0 10px 24px #0b6ed022;
+}
+
+.meeting-note-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.meeting-note-card {
+  width: 100%;
+  display: grid;
+  gap: 8px;
+  text-align: left;
+  border: 1px solid #d7e3ef;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+  box-shadow: 0 10px 24px #123b650d;
+}
+
+.meeting-note-card-head,
+.meeting-note-card-meta,
+.meeting-note-detail-head,
+.meeting-note-editor-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.meeting-note-card-head {
+  justify-content: space-between;
+}
+
+.meeting-note-card-title,
+.meeting-note-detail-title {
+  color: #1a2735;
+}
+
+.meeting-note-card-date,
+.meeting-note-card-meta,
+.meeting-note-detail-meta,
+.meeting-note-preview-label {
+  font-size: 12px;
+  color: #607184;
+}
+
+.meeting-note-card-preview {
+  margin: 0;
+  color: #2f4356;
+  line-height: 1.6;
+  font-size: 13px;
+}
+
+.meeting-note-card-meta {
+  justify-content: space-between;
+}
+
+.meeting-note-empty {
+  margin-top: 12px;
+}
+
+.teacher-fab {
+  position: fixed;
+  right: 18px;
+  bottom: 24px;
+  width: 56px;
+  height: 56px;
+  min-width: 56px;
+  min-height: 56px;
+  border-radius: 50%;
+  padding: 0;
+  font-size: 28px;
+  line-height: 1;
+  box-shadow: 0 18px 34px #0b6ed038;
+  z-index: 25;
+}
+
+.meeting-note-detail-head,
+.meeting-note-editor-top {
+  justify-content: space-between;
+  margin-top: 14px;
+}
+
+.meeting-note-back {
+  min-width: 92px;
+}
+
+.meeting-note-author-chip {
+  margin-left: auto;
+}
+
+.meeting-note-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #edf4fb;
+  border: 1px solid #d4dfeb;
+  color: #47627d;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.meeting-note-detail-card {
+  margin-top: 10px;
+  padding: 16px;
+  border: 1px solid #d9e4f0;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.meeting-note-detail-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.meeting-note-detail-title {
+  margin: 0;
+  font-size: 22px;
+}
+
+.meeting-note-detail-meta {
+  display: grid;
+  gap: 4px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.meeting-note-detail-divider {
+  height: 1px;
+  margin: 14px 0 16px;
+  background: #d9e4f0;
+}
+
+.meeting-note-detail-body {
+  min-width: 0;
+}
+
+.meeting-note-editor-grid {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.meeting-note-editor-panels {
+  display: grid;
+  gap: 12px;
+}
+
+.meeting-note-field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.meeting-note-help-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.meeting-note-help-trigger {
+  width: 46px;
+  height: 22px;
+  min-width: 46px;
+  min-height: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #c8d8e8;
+  border-radius: 999px;
+  background: #f4f9ff;
+  color: #235487;
+  line-height: 1;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.meeting-note-help-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 10;
+  width: min(320px, calc(100vw - 36px));
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #d7e2ee;
+  border-radius: 14px;
+  box-shadow: 0 14px 30px #17324d18;
+  background: linear-gradient(180deg, #fbfdff, #f3f8fe);
+}
+
+.meeting-note-help-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #203243;
+}
+
+.meeting-note-help-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.meeting-note-help-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.meeting-note-help-desc {
+  font-size: 12px;
+  color: #607184;
+}
+
+.meeting-note-editor-panel {
+  display: grid;
+  gap: 8px;
+}
+
+.meeting-note-textarea {
+  min-height: 280px;
+  resize: vertical;
+  border: 1px solid #d7e2ee;
+  border-radius: 14px;
+  background: #fbfdff;
+  padding: 14px;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #223140;
+}
+
+.meeting-note-textarea::placeholder {
+  color: #223140;
+  opacity: 0.72;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.meeting-note-preview {
+  min-height: 280px;
+  padding: 14px;
+  border: 1px solid #d7e2ee;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.markdown-empty {
+  color: #8091a2;
+  font-size: 13px;
+}
+
+.markdown-body {
+  color: #223140;
+  line-height: 1.7;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin: 0 0 10px;
+  color: #172434;
+}
+
+.markdown-body p,
+.markdown-body ul,
+.markdown-body ol,
+.markdown-body blockquote,
+.markdown-body pre {
+  margin: 0 0 12px;
+}
+
+.markdown-list {
+  padding-left: 20px;
+}
+
+.markdown-check-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  list-style: none;
+  margin-left: -20px;
+}
+
+.markdown-check-box {
+  color: #0b6ed0;
+  font-weight: 700;
+}
+
+.markdown-quote {
+  padding: 10px 12px;
+  border-left: 4px solid #82afe2;
+  background: #f3f8fe;
+  border-radius: 0 12px 12px 0;
+  color: #31485e;
+}
+
+.markdown-code {
+  overflow-x: auto;
+  padding: 12px;
+  border-radius: 12px;
+  background: #13263a;
+  color: #f3f7fb;
+}
+
+.markdown-body code {
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: #eef3f8;
+  color: #1d3855;
+  font-size: 12px;
+}
+
+.markdown-body pre code {
+  padding: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.markdown-body a {
+  color: #0b6ed0;
+}
+
 @media (min-width: 721px) {
   .app-shell {
     padding-top: 18px;
+  }
+
+  .meeting-note-editor-panels {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -1277,5 +1640,23 @@ body[data-app-mode="teacher"] .note-stepper-btn {
 
   body[data-app-mode="teacher"] .check-panel-spacer {
     height: 150px;
+  }
+
+  .teacher-fab {
+    right: 14px;
+    bottom: 16px;
+  }
+
+  .meeting-note-detail-card {
+    padding: 14px;
+  }
+
+  .meeting-note-detail-title {
+    font-size: 19px;
+  }
+
+  .meeting-note-textarea,
+  .meeting-note-preview {
+    min-height: 220px;
   }
 }
