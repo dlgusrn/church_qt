@@ -300,6 +300,8 @@ class TeacherAppServiceIntegrationTest {
 
         TeacherMeetingNoteDetailResponse detail = teacherAppService.getMeetingNote(teacher.getId(), created.noteId());
         assertEquals("# 안건\n- 학생 심방\n- 반 운영", detail.content());
+        assertTrue(detail.canEdit());
+        assertTrue(detail.canDelete());
     }
 
     @Test
@@ -325,6 +327,91 @@ class TeacherAppServiceIntegrationTest {
         );
         assertEquals("내용을 입력하세요.", contentException.getMessage());
         assertEquals(0, meetingNoteRepository.count());
+    }
+
+    @Test
+    @DisplayName("회의록 작성자와 전도사는 회의록을 수정할 수 있다")
+    void meetingNote_update_allowedForAuthorAndPastor() {
+        Teacher author = saveTeacher("meeting_author", TeacherRole.TEACHER, true, false);
+        Teacher pastor = saveTeacher("meeting_pastor", TeacherRole.PASTOR, true, false);
+
+        TeacherMeetingNoteDetailResponse created = teacherAppService.createMeetingNote(
+                author.getId(),
+                new CreateTeacherMeetingNoteRequest("원본 제목", "원본 내용")
+        );
+
+        TeacherMeetingNoteDetailResponse updatedByAuthor = teacherAppService.updateMeetingNote(
+                author.getId(),
+                created.noteId(),
+                new CreateTeacherMeetingNoteRequest("작성자 수정", "작성자 내용")
+        );
+        assertEquals("작성자 수정", updatedByAuthor.title());
+        assertEquals("작성자 내용", updatedByAuthor.content());
+
+        TeacherMeetingNoteDetailResponse updatedByPastor = teacherAppService.updateMeetingNote(
+                pastor.getId(),
+                created.noteId(),
+                new CreateTeacherMeetingNoteRequest("전도사 수정", "전도사 내용")
+        );
+        assertEquals("전도사 수정", updatedByPastor.title());
+        assertEquals("전도사 내용", updatedByPastor.content());
+        assertTrue(updatedByPastor.canEdit());
+        assertTrue(updatedByPastor.canDelete());
+    }
+
+    @Test
+    @DisplayName("회의록은 작성자와 전도사가 아니면 수정하거나 삭제할 수 없다")
+    void meetingNote_manage_deniedForNonAuthorNonPastor() {
+        Teacher author = saveTeacher("meeting_owner", TeacherRole.TEACHER, true, false);
+        Teacher otherTeacher = saveTeacher("meeting_other", TeacherRole.TEACHER, true, false);
+        Teacher director = saveTeacher("meeting_director", TeacherRole.DIRECTOR, true, false);
+
+        TeacherMeetingNoteDetailResponse created = teacherAppService.createMeetingNote(
+                author.getId(),
+                new CreateTeacherMeetingNoteRequest("제목", "내용")
+        );
+
+        IllegalArgumentException updateException = assertThrows(
+                IllegalArgumentException.class,
+                () -> teacherAppService.updateMeetingNote(
+                        otherTeacher.getId(),
+                        created.noteId(),
+                        new CreateTeacherMeetingNoteRequest("수정 시도", "수정 내용")
+                )
+        );
+        assertEquals("이 회의록을 수정하거나 삭제할 수 없습니다.", updateException.getMessage());
+
+        IllegalArgumentException deleteException = assertThrows(
+                IllegalArgumentException.class,
+                () -> teacherAppService.deleteMeetingNote(director.getId(), created.noteId())
+        );
+        assertEquals("이 회의록을 수정하거나 삭제할 수 없습니다.", deleteException.getMessage());
+
+        TeacherMeetingNoteDetailResponse detail = teacherAppService.getMeetingNote(otherTeacher.getId(), created.noteId());
+        assertFalse(detail.canEdit());
+        assertFalse(detail.canDelete());
+    }
+
+    @Test
+    @DisplayName("회의록 작성자와 전도사는 회의록을 삭제할 수 있다")
+    void meetingNote_delete_allowedForAuthorAndPastor() {
+        Teacher author = saveTeacher("meeting_delete_author", TeacherRole.TEACHER, true, false);
+        Teacher pastor = saveTeacher("meeting_delete_pastor", TeacherRole.PASTOR, true, false);
+
+        TeacherMeetingNoteDetailResponse createdByAuthor = teacherAppService.createMeetingNote(
+                author.getId(),
+                new CreateTeacherMeetingNoteRequest("삭제 대상 1", "내용")
+        );
+        TeacherMeetingNoteDetailResponse createdByPastorTarget = teacherAppService.createMeetingNote(
+                author.getId(),
+                new CreateTeacherMeetingNoteRequest("삭제 대상 2", "내용")
+        );
+
+        teacherAppService.deleteMeetingNote(author.getId(), createdByAuthor.noteId());
+        assertFalse(meetingNoteRepository.findById(createdByAuthor.noteId()).isPresent());
+
+        teacherAppService.deleteMeetingNote(pastor.getId(), createdByPastorTarget.noteId());
+        assertFalse(meetingNoteRepository.findById(createdByPastorTarget.noteId()).isPresent());
     }
 
     private Teacher saveTeacher(String loginId, TeacherRole role, boolean active, boolean canCheckAllStudents) {

@@ -649,6 +649,12 @@ button.ghost {
   color: #1e589d;
 }
 
+button.danger {
+  background: #fdecec;
+  border-color: #efb4b4;
+  color: #b42318;
+}
+
 .list {
   display: grid;
   gap: 8px;
@@ -1272,12 +1278,27 @@ body[data-app-mode="teacher"] .note-stepper-btn {
   margin-top: 14px;
 }
 
-.meeting-note-back {
-  min-width: 92px;
+.meeting-note-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.meeting-note-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.meeting-note-detail-actions-standalone {
+  margin-top: 12px;
 }
 
 .meeting-note-author-chip {
-  margin-left: auto;
+  margin-left: 0;
 }
 
 .meeting-note-chip {

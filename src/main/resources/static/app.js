@@ -637,6 +637,11 @@
     return `${year}.${month}.${day} ${hour}:${minute}`;
   }
 
+  function shouldShowMeetingNoteUpdatedAt(createdAt, updatedAt) {
+    if (!createdAt || !updatedAt) return false;
+    return String(createdAt) !== String(updatedAt);
+  }
+
   function buildTeacherTabMarkup(activeTab, year) {
     return `
       <nav class="teacher-tab-nav" aria-label="교사 메인 메뉴">
@@ -1156,12 +1161,10 @@
         <button class="meeting-note-card" type="button" data-note-id="${note.noteId}">
           <div class="meeting-note-card-head">
             <strong class="meeting-note-card-title">${escapeHtml(note.title || "")}</strong>
-            <span class="meeting-note-card-date">${escapeHtml(formatTeacherDateTime(note.updatedAt))}</span>
+            <span class="meeting-note-card-date">${escapeHtml(formatTeacherDateTime(note.createdAt))}</span>
           </div>
-          <p class="meeting-note-card-preview">${escapeHtml(note.preview || "") || "내용 미리보기가 없습니다."}</p>
           <div class="meeting-note-card-meta">
             <span>${escapeHtml(note.authorName || "-")}</span>
-            <span>수정 ${escapeHtml(formatTeacherDateTime(note.updatedAt))}</span>
           </div>
         </button>
       `).join("");
@@ -1190,6 +1193,7 @@
     const year = await resolveTeacherYear(new URLSearchParams(window.location.search).get("year"));
     const note = await requestWithTeacherAuth(`/api/teacher/meeting-notes/${meetingNoteId}`);
     const teacherName = resolveTeacherDisplayName() || "선생님";
+    const showUpdatedAt = shouldShowMeetingNoteUpdatedAt(note.createdAt, note.updatedAt);
 
     appRoot.innerHTML = `
       <section class="panel">
@@ -1210,7 +1214,7 @@
             <h3 class="meeting-note-detail-title">${escapeHtml(note.title || "")}</h3>
             <div class="meeting-note-detail-meta">
               <div>작성 : ${escapeHtml(formatTeacherDateTime(note.createdAt))}</div>
-              <div>수정 : ${escapeHtml(formatTeacherDateTime(note.updatedAt))}</div>
+              ${showUpdatedAt ? `<div>수정 : ${escapeHtml(formatTeacherDateTime(note.updatedAt))}</div>` : ""}
             </div>
           </div>
           <div class="meeting-note-detail-divider"></div>
@@ -1218,6 +1222,12 @@
             ${renderMarkdown(note.content)}
           </div>
         </article>
+        ${(note.canEdit || note.canDelete) ? `
+          <div class="meeting-note-detail-actions meeting-note-detail-actions-standalone">
+            ${note.canEdit ? '<button id="btnEditMeetingNote" class="ghost" type="button">수정</button>' : ""}
+            ${note.canDelete ? '<button id="btnDeleteMeetingNote" class="ghost danger" type="button">삭제</button>' : ""}
+          </div>
+        ` : ""}
       </section>
     `;
 
@@ -1225,9 +1235,33 @@
     document.getElementById("btnBackMeetingNotes").addEventListener("click", function () {
       navigate(`/app/teacher/meeting-notes?year=${year}`);
     });
+
+    if (note.canEdit) {
+      document.getElementById("btnEditMeetingNote").addEventListener("click", function () {
+        navigate(`/app/teacher/meeting-notes/${meetingNoteId}/edit?year=${year}`);
+      });
+    }
+
+    if (note.canDelete) {
+      document.getElementById("btnDeleteMeetingNote").addEventListener("click", async function () {
+        if (!window.confirm("이 회의록을 삭제하시겠어요? 삭제 후 복구할 수 없습니다.")) {
+          return;
+        }
+        try {
+          clearError();
+          await requestWithTeacherAuth(`/api/teacher/meeting-notes/${meetingNoteId}`, {
+            method: "DELETE"
+          });
+          showToast("회의록이 삭제되었습니다.");
+          navigate(`/app/teacher/meeting-notes?year=${year}`);
+        } catch (e) {
+          showError(normalizeErrorMessage(e.message));
+        }
+      });
+    }
   }
 
-  async function renderTeacherMeetingNoteCreateScreen() {
+  async function renderTeacherMeetingNoteEditorScreen(meetingNoteId) {
     setAppMode("teacher");
     clearError();
     cleanupTeacherMenuListeners();
@@ -1238,6 +1272,12 @@
 
     const year = await resolveTeacherYear(new URLSearchParams(window.location.search).get("year"));
     const teacherName = resolveTeacherDisplayName() || "선생님";
+    const editing = Number.isFinite(meetingNoteId);
+    const note = editing ? await requestWithTeacherAuth(`/api/teacher/meeting-notes/${meetingNoteId}`) : null;
+
+    if (editing && !note.canEdit) {
+      throw new Error("이 회의록을 수정할 수 없습니다.");
+    }
 
     appRoot.innerHTML = `
       <section class="panel">
@@ -1246,17 +1286,19 @@
             <h2 class="simple-title">${escapeHtml(teacherName)} 선생님, 안녕하세요.</h2>
             ${buildTeacherMenuMarkup()}
           </div>
-          <p class="simple-copy">회의 내용을 마크다운 형식으로 정리할 수 있습니다.</p>
+          <p class="simple-copy">${editing ? "회의록 내용을 수정할 수 있습니다." : "회의 내용을 마크다운 형식으로 정리할 수 있습니다."}</p>
         </div>
         ${buildTeacherTabMarkup("meeting-notes", year)}
         <div class="meeting-note-editor-top">
-          <button id="btnCancelMeetingNoteCreate" class="ghost meeting-note-back" type="button">목록으로</button>
-          <button id="btnSaveMeetingNote" type="button">저장</button>
+          <div class="meeting-note-editor-actions">
+            <button id="btnCancelMeetingNoteEdit" class="ghost meeting-note-back" type="button">취소</button>
+            <button id="btnSaveMeetingNote" type="button">저장</button>
+          </div>
         </div>
         <div class="meeting-note-editor-grid">
           <label class="simple-field">
             <span>제목</span>
-            <input id="meetingNoteTitle" type="text" maxlength="200" placeholder="예) 4월 4주차 교사 회의" />
+            <input id="meetingNoteTitle" type="text" maxlength="200" placeholder="예) 4월 4주차 교사 회의" value="${escapeHtml(editing ? note.title || "" : "")}" />
           </label>
           <div class="meeting-note-editor-panels">
             <div class="simple-field meeting-note-editor-panel">
@@ -1282,7 +1324,7 @@
                   </div>
                 </div>
               </div>
-              <textarea id="meetingNoteContent" class="meeting-note-textarea" placeholder="# 안건&#10;- 출석 점검&#10;- 반별 전달사항&#10;&#10;## 기도제목&#10;> 이번 주 심방 대상"></textarea>
+              <textarea id="meetingNoteContent" class="meeting-note-textarea" placeholder="# 안건&#10;- 출석 점검&#10;- 반별 전달사항&#10;&#10;## 기도제목&#10;> 이번 주 심방 대상">${escapeHtml(editing ? note.content || "" : "")}</textarea>
             </div>
             <section class="meeting-note-editor-panel">
               <div class="meeting-note-preview-label">미리보기</div>
@@ -1326,26 +1368,30 @@
       helpButton.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
     });
 
-    document.getElementById("btnCancelMeetingNoteCreate").addEventListener("click", function () {
-      navigate(`/app/teacher/meeting-notes?year=${year}`);
+    document.getElementById("btnCancelMeetingNoteEdit").addEventListener("click", function () {
+      navigate(editing ? `/app/teacher/meeting-notes/${meetingNoteId}?year=${year}` : `/app/teacher/meeting-notes?year=${year}`);
     });
 
     document.getElementById("btnSaveMeetingNote").addEventListener("click", async function () {
       try {
         clearError();
-        const body = await requestWithTeacherAuth("/api/teacher/meeting-notes", {
-          method: "POST",
+        const body = await requestWithTeacherAuth(editing ? `/api/teacher/meeting-notes/${meetingNoteId}` : "/api/teacher/meeting-notes", {
+          method: editing ? "PUT" : "POST",
           body: JSON.stringify({
             title: titleInput.value,
             content: contentInput.value
           })
         });
-        showToast("회의록이 저장되었습니다.");
+        showToast(editing ? "회의록이 수정되었습니다." : "회의록이 저장되었습니다.");
         navigate(`/app/teacher/meeting-notes/${body.noteId}?year=${year}`);
       } catch (e) {
         showError(normalizeErrorMessage(e.message));
       }
     });
+  }
+
+  async function renderTeacherMeetingNoteCreateScreen() {
+    await renderTeacherMeetingNoteEditorScreen(NaN);
   }
 
   async function renderTeacherCalendarScreen(studentId) {
@@ -1753,6 +1799,16 @@
           return;
         }
         await renderTeacherMeetingNoteDetailScreen(Number(teacherMeetingNoteDetailMatch[1]));
+        return;
+      }
+
+      const teacherMeetingNoteEditMatch = path.match(/^\/app\/teacher\/meeting-notes\/(\d+)\/edit$/);
+      if (teacherMeetingNoteEditMatch) {
+        if (isTeacherPasswordChangeRequired()) {
+          navigate("/app/teacher/password");
+          return;
+        }
+        await renderTeacherMeetingNoteEditorScreen(Number(teacherMeetingNoteEditMatch[1]));
         return;
       }
 

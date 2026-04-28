@@ -66,6 +66,11 @@ public class AppUiController {
         return "forward:/app.html";
     }
 
+    @GetMapping("/app/teacher/meeting-notes/{meetingNoteId:\\d+}/edit")
+    public String teacherMeetingNoteEdit() {
+        return "forward:/app.html";
+    }
+
     @GetMapping("/app/teacher/students/{studentId:\\d+}/calendar")
     public String teacherStudentCalendar() {
         return "forward:/app.html";

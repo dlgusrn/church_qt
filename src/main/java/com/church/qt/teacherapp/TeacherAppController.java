@@ -53,6 +53,25 @@ public class TeacherAppController {
         return teacherAppService.createMeetingNote(teacherId, request);
     }
 
+    @PutMapping("/meeting-notes/{meetingNoteId}")
+    public TeacherMeetingNoteDetailResponse updateMeetingNote(
+            @RequestHeader("Authorization") String authorizationHeader,
+            @PathVariable Long meetingNoteId,
+            @RequestBody CreateTeacherMeetingNoteRequest request
+    ) {
+        Long teacherId = teacherAppService.extractTeacherId(authorizationHeader);
+        return teacherAppService.updateMeetingNote(teacherId, meetingNoteId, request);
+    }
+
+    @DeleteMapping("/meeting-notes/{meetingNoteId}")
+    public void deleteMeetingNote(
+            @RequestHeader("Authorization") String authorizationHeader,
+            @PathVariable Long meetingNoteId
+    ) {
+        Long teacherId = teacherAppService.extractTeacherId(authorizationHeader);
+        teacherAppService.deleteMeetingNote(teacherId, meetingNoteId);
+    }
+
     @PostMapping("/check")
     public void updateMyCheck(
             @RequestHeader("Authorization") String authorizationHeader,

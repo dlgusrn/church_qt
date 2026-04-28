@@ -104,10 +104,9 @@ public class TeacherAppService {
 
     @Transactional(readOnly = true)
     public TeacherMeetingNoteDetailResponse getMeetingNote(Long teacherId, Long meetingNoteId) {
-        requireActiveTeacher(teacherId);
-        MeetingNote meetingNote = meetingNoteRepository.findDetailById(meetingNoteId)
-                .orElseThrow(() -> new IllegalArgumentException("회의록이 존재하지 않습니다."));
-        return TeacherMeetingNoteDetailResponse.from(meetingNote);
+        Teacher teacher = requireActiveTeacher(teacherId);
+        MeetingNote meetingNote = getMeetingNoteOrThrow(meetingNoteId);
+        return TeacherMeetingNoteDetailResponse.from(meetingNote, canManageMeetingNote(teacher, meetingNote));
     }
 
     @Transactional
@@ -127,7 +126,39 @@ public class TeacherAppService {
                 "CREATE_MEETING_NOTE",
                 "meetingNoteId=" + meetingNote.getId() + ", title=" + meetingNote.getTitle()
         );
-        return TeacherMeetingNoteDetailResponse.from(meetingNote);
+        return TeacherMeetingNoteDetailResponse.from(meetingNote, true);
+    }
+
+    @Transactional
+    public TeacherMeetingNoteDetailResponse updateMeetingNote(Long teacherId, Long meetingNoteId, CreateTeacherMeetingNoteRequest request) {
+        Teacher teacher = requireActiveTeacher(teacherId);
+        MeetingNote meetingNote = getMeetingNoteOrThrow(meetingNoteId);
+        requireMeetingNoteManagePermission(teacher, meetingNote);
+
+        String title = requireMeetingNoteText(request.title(), "제목을 입력하세요.", 200);
+        String content = requireMeetingNoteText(request.content(), "내용을 입력하세요.", 20000);
+        meetingNote.update(title, content);
+
+        auditLogService.record(
+                teacherId,
+                "UPDATE_MEETING_NOTE",
+                "meetingNoteId=" + meetingNote.getId() + ", title=" + meetingNote.getTitle()
+        );
+        return TeacherMeetingNoteDetailResponse.from(meetingNote, true);
+    }
+
+    @Transactional
+    public void deleteMeetingNote(Long teacherId, Long meetingNoteId) {
+        Teacher teacher = requireActiveTeacher(teacherId);
+        MeetingNote meetingNote = getMeetingNoteOrThrow(meetingNoteId);
+        requireMeetingNoteManagePermission(teacher, meetingNote);
+
+        meetingNoteRepository.delete(meetingNote);
+        auditLogService.record(
+                teacherId,
+                "DELETE_MEETING_NOTE",
+                "meetingNoteId=" + meetingNoteId + ", title=" + meetingNote.getTitle()
+        );
     }
 
     @Transactional
@@ -344,5 +375,24 @@ public class TeacherAppService {
     private boolean hasPrivilegedCheckAccess(Teacher teacher) {
         TeacherRole role = teacher.getEffectiveRole();
         return role == TeacherRole.ADMIN || role == TeacherRole.PASTOR || role == TeacherRole.DIRECTOR;
+    }
+
+    private MeetingNote getMeetingNoteOrThrow(Long meetingNoteId) {
+        return meetingNoteRepository.findDetailById(meetingNoteId)
+                .orElseThrow(() -> new IllegalArgumentException("회의록이 존재하지 않습니다."));
+    }
+
+    private void requireMeetingNoteManagePermission(Teacher teacher, MeetingNote meetingNote) {
+        if (!canManageMeetingNote(teacher, meetingNote)) {
+            throw new IllegalArgumentException("이 회의록을 수정하거나 삭제할 수 없습니다.");
+        }
+    }
+
+    private boolean canManageMeetingNote(Teacher teacher, MeetingNote meetingNote) {
+        if (teacher.getEffectiveRole() == TeacherRole.PASTOR) {
+            return true;
+        }
+        return meetingNote.getCreatedByTeacher() != null
+                && Objects.equals(meetingNote.getCreatedByTeacher().getId(), teacher.getId());
     }
 }
