@@ -5,6 +5,7 @@
   const queryYearInput = document.getElementById("queryYear");
   const poolYearFilter = document.getElementById("poolYearFilter");
   const auditResult = document.getElementById("auditResult");
+  const adminMeetingNoteRoot = document.getElementById("adminMeetingNoteRoot");
   const teacherPool = document.getElementById("teacherPool");
   const studentPool = document.getElementById("studentPool");
   const teacherPageInfo = document.getElementById("teacherPageInfo");
@@ -68,6 +69,10 @@
   const studentEditorState = {
     mode: "create",
     studentId: null
+  };
+  const adminMeetingNoteState = {
+    items: [],
+    currentNoteId: null
   };
 
   const savedAuditActionType = localStorage.getItem("qt_admin_audit_action_type");
@@ -198,7 +203,10 @@
   }
 
   function refreshVisibleTabData() {
-    const activeTab = localStorage.getItem("qt_admin_active_tab") || "dashboard";
+    let activeTab = localStorage.getItem("qt_admin_active_tab") || "dashboard";
+    if (activeTab === "audit") {
+      activeTab = "meeting-notes";
+    }
     if (!adminToken) return;
     if (activeTab === "pool") {
       const activePoolTab = localStorage.getItem("qt_admin_pool_tab") || "teachers";
@@ -213,10 +221,19 @@
       } else {
         renderAssignmentManagement();
       }
+      return;
+    }
+    if (activeTab === "meeting-notes") {
+      loadAdminMeetingNotes().catch(function (e) {
+        render(e.message);
+      });
     }
   }
 
   function setActiveTab(tabName) {
+    if (tabName === "audit") {
+      tabName = "meeting-notes";
+    }
     const safeTab = tabPanels.some(panel => panel.dataset.tabPanel === tabName) ? tabName : "dashboard";
     tabButtons.forEach(button => {
       const active = button.dataset.tabTarget === safeTab;
@@ -244,6 +261,11 @@
       setPoolTab("teachers");
     } else if (safeTab === "pool") {
       setPoolTab("teachers");
+    }
+    if (safeTab === "meeting-notes" && adminToken) {
+      loadAdminMeetingNotes().catch(function (e) {
+        render(e.message);
+      });
     }
     if (safeTab === "audit" && adminToken) {
       const params = buildAuditParams(100);
@@ -415,6 +437,11 @@
     teacherPageInfo.textContent = "1 / 1";
     studentPageInfo.textContent = "1 / 1";
     auditResult.innerHTML = "";
+    if (adminMeetingNoteRoot) {
+      adminMeetingNoteRoot.innerHTML = "";
+    }
+    adminMeetingNoteState.items = [];
+    adminMeetingNoteState.currentNoteId = null;
     bootstrapUiState.loaded = "없음";
     bootstrapUiState.contract = "-";
     bootstrapUiState.request = "-";
@@ -524,6 +551,326 @@
       day: "2-digit",
       hour: "2-digit",
       minute: "2-digit"
+    });
+  }
+
+  function shouldShowMeetingNoteUpdatedAt(createdAt, updatedAt) {
+    if (!createdAt || !updatedAt) return false;
+    return String(createdAt) !== String(updatedAt);
+  }
+
+  function renderInlineMarkdown(text) {
+    return escapeHtml(text)
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+      .replace(/`([^`]+)`/g, "<code>$1</code>")
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/~~([^~]+)~~/g, "<del>$1</del>")
+      .replace(/\*([^*]+)\*/g, "<em>$1</em>");
+  }
+
+  function renderMarkdown(markdown) {
+    const source = String(markdown || "").replace(/\r\n?/g, "\n");
+    if (!source.trim()) {
+      return '<div class="markdown-empty">내용이 없습니다.</div>';
+    }
+
+    const html = [];
+    const lines = source.split("\n");
+    let paragraph = [];
+    let listType = null;
+    let listItems = [];
+    let inCodeBlock = false;
+    let codeLines = [];
+
+    function flushParagraph() {
+      if (!paragraph.length) return;
+      html.push(`<p>${paragraph.map(renderInlineMarkdown).join("<br />")}</p>`);
+      paragraph = [];
+    }
+
+    function flushList() {
+      if (!listType) return;
+      html.push(`<${listType} class="markdown-list">${listItems.join("")}</${listType}>`);
+      listType = null;
+      listItems = [];
+    }
+
+    function flushCodeBlock() {
+      if (!codeLines.length) return;
+      html.push(`<pre class="markdown-code"><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
+      codeLines = [];
+    }
+
+    lines.forEach(function (line) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("```")) {
+        flushParagraph();
+        flushList();
+        if (inCodeBlock) {
+          flushCodeBlock();
+          inCodeBlock = false;
+        } else {
+          inCodeBlock = true;
+        }
+        return;
+      }
+      if (inCodeBlock) {
+        codeLines.push(line);
+        return;
+      }
+      if (!trimmed) {
+        flushParagraph();
+        flushList();
+        return;
+      }
+
+      const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
+      if (headingMatch) {
+        flushParagraph();
+        flushList();
+        const level = Math.min(6, headingMatch[1].length);
+        html.push(`<h${level}>${renderInlineMarkdown(headingMatch[2])}</h${level}>`);
+        return;
+      }
+
+      const checkListMatch = trimmed.match(/^[-*]\s+\[([ xX])\]\s+(.+)$/);
+      if (checkListMatch) {
+        flushParagraph();
+        if (listType !== "ul") {
+          flushList();
+          listType = "ul";
+        }
+        listItems.push(`
+          <li class="markdown-check-item">
+            <span class="markdown-check-box">${checkListMatch[1].toLowerCase() === "x" ? "☑" : "☐"}</span>
+            <span>${renderInlineMarkdown(checkListMatch[2])}</span>
+          </li>
+        `);
+        return;
+      }
+
+      const unorderedMatch = trimmed.match(/^[-*]\s+(.+)$/);
+      if (unorderedMatch) {
+        flushParagraph();
+        if (listType !== "ul") {
+          flushList();
+          listType = "ul";
+        }
+        listItems.push(`<li>${renderInlineMarkdown(unorderedMatch[1])}</li>`);
+        return;
+      }
+
+      const orderedMatch = trimmed.match(/^\d+\.\s+(.+)$/);
+      if (orderedMatch) {
+        flushParagraph();
+        if (listType !== "ol") {
+          flushList();
+          listType = "ol";
+        }
+        listItems.push(`<li>${renderInlineMarkdown(orderedMatch[1])}</li>`);
+        return;
+      }
+
+      const quoteMatch = trimmed.match(/^>\s?(.+)$/);
+      if (quoteMatch) {
+        flushParagraph();
+        flushList();
+        html.push(`<blockquote class="markdown-quote">${renderInlineMarkdown(quoteMatch[1])}</blockquote>`);
+        return;
+      }
+
+      paragraph.push(trimmed);
+    });
+
+    flushParagraph();
+    flushList();
+    if (inCodeBlock) {
+      flushCodeBlock();
+    }
+
+    return `<div class="markdown-body">${html.join("")}</div>`;
+  }
+
+  function renderAdminMeetingNoteList(notes) {
+    if (!adminMeetingNoteRoot) return;
+    const items = Array.isArray(notes) ? notes : [];
+    adminMeetingNoteState.items = items;
+    adminMeetingNoteState.currentNoteId = null;
+    adminMeetingNoteRoot.innerHTML = `
+      <div class="admin-note-toolbar">
+        <button id="btnAdminMeetingNoteCreate" type="button">회의록 추가</button>
+      </div>
+      ${!items.length ? '<div class="table-empty admin-note-empty">작성된 회의록이 없습니다.</div>' : `
+        <div class="admin-note-list">
+          ${items.map(function (note) {
+            return `
+              <button class="admin-note-card" type="button" data-note-id="${note.noteId}">
+                <div class="admin-note-card-head">
+                  <strong class="admin-note-card-title">${escapeHtml(note.title || "")}</strong>
+                  <span class="admin-note-card-date">${escapeHtml(formatDateTime(note.createdAt))}</span>
+                </div>
+                <div class="admin-note-card-meta">
+                  <span>${escapeHtml(note.authorName || "-")}</span>
+                </div>
+              </button>
+            `;
+          }).join("")}
+        </div>
+      `}
+    `;
+
+    document.getElementById("btnAdminMeetingNoteCreate").addEventListener("click", function () {
+      renderAdminMeetingNoteEditor();
+    });
+    adminMeetingNoteRoot.querySelectorAll(".admin-note-card").forEach(function (button) {
+      button.addEventListener("click", function () {
+        renderAdminMeetingNoteDetail(Number(button.dataset.noteId));
+      });
+    });
+  }
+
+  async function loadAdminMeetingNotes() {
+    const notes = await api("/api/teacher/meeting-notes", { method: "GET" });
+    renderAdminMeetingNoteList(notes);
+  }
+
+  async function renderAdminMeetingNoteDetail(noteId) {
+    if (!adminMeetingNoteRoot) return;
+    const note = await api(`/api/teacher/meeting-notes/${noteId}`, { method: "GET" });
+    adminMeetingNoteState.currentNoteId = noteId;
+    const showUpdatedAt = shouldShowMeetingNoteUpdatedAt(note.createdAt, note.updatedAt);
+
+    adminMeetingNoteRoot.innerHTML = `
+      <div class="admin-note-toolbar">
+        <button id="btnAdminMeetingNoteBack" class="ghost" type="button">목록으로</button>
+      </div>
+      <div class="admin-note-detail-head">
+        <span class="badge-soft">${escapeHtml(note.authorName || "-")}</span>
+      </div>
+      <article class="admin-note-detail-card">
+        <div class="admin-note-detail-top">
+          <h3 class="admin-note-detail-title">${escapeHtml(note.title || "")}</h3>
+          <div class="admin-note-detail-meta">
+            <div>작성 : ${escapeHtml(formatDateTime(note.createdAt))}</div>
+            ${showUpdatedAt ? `<div>수정 : ${escapeHtml(formatDateTime(note.updatedAt))}</div>` : ""}
+          </div>
+        </div>
+        <div class="admin-note-detail-divider"></div>
+        <div class="admin-note-detail-body">
+          ${renderMarkdown(note.content)}
+        </div>
+      </article>
+      ${(note.canEdit || note.canDelete) ? `
+        <div class="admin-note-detail-actions">
+          ${note.canEdit ? '<button id="btnAdminMeetingNoteEdit" class="ghost" type="button">수정</button>' : ""}
+          ${note.canDelete ? '<button id="btnAdminMeetingNoteDelete" class="ghost danger" type="button">삭제</button>' : ""}
+        </div>
+      ` : ""}
+    `;
+
+    document.getElementById("btnAdminMeetingNoteBack").addEventListener("click", function () {
+      renderAdminMeetingNoteList(adminMeetingNoteState.items);
+    });
+    if (note.canEdit) {
+      document.getElementById("btnAdminMeetingNoteEdit").addEventListener("click", function () {
+        renderAdminMeetingNoteEditor(noteId);
+      });
+    }
+    if (note.canDelete) {
+      document.getElementById("btnAdminMeetingNoteDelete").addEventListener("click", async function () {
+        if (!window.confirm("이 회의록을 삭제하시겠어요? 삭제 후 복구할 수 없습니다.")) {
+          return;
+        }
+        try {
+          await api(`/api/teacher/meeting-notes/${noteId}`, { method: "DELETE" });
+          await loadAdminMeetingNotes();
+          render("회의록이 삭제되었습니다.");
+        } catch (e) {
+          render(e.message);
+        }
+      });
+    }
+  }
+
+  async function renderAdminMeetingNoteEditor(noteId) {
+    if (!adminMeetingNoteRoot) return;
+    const editing = Number.isFinite(noteId);
+    const note = editing ? await api(`/api/teacher/meeting-notes/${noteId}`, { method: "GET" }) : null;
+    if (editing && !note.canEdit) {
+      throw new Error("이 회의록을 수정할 수 없습니다.");
+    }
+
+    adminMeetingNoteRoot.innerHTML = `
+      <div class="admin-note-toolbar admin-note-toolbar-end">
+        <div class="admin-note-editor-actions">
+          <button id="btnAdminMeetingNoteCancel" class="ghost" type="button">취소</button>
+          <button id="btnAdminMeetingNoteSave" type="button">저장</button>
+        </div>
+      </div>
+      <div class="admin-note-editor-grid">
+        <label class="field-block admin-note-field">
+          <span>제목</span>
+          <input id="adminMeetingNoteTitle" type="text" maxlength="200" placeholder="예) 4월 4주차 교사 회의" value="${escapeHtml(editing ? note.title || "" : "")}" />
+        </label>
+        <div class="admin-note-editor-panels">
+          <div class="field-block admin-note-field admin-note-editor-panel">
+            <span>내용</span>
+            <textarea id="adminMeetingNoteContent" class="admin-note-textarea" placeholder="# 안건&#10;- 출석 점검&#10;- 반별 전달사항&#10;&#10;## 기도제목&#10;> 이번 주 심방 대상">${escapeHtml(editing ? note.content || "" : "")}</textarea>
+          </div>
+          <section class="admin-note-editor-panel admin-note-preview-panel">
+            <div class="admin-note-preview-label">미리보기</div>
+            <div id="adminMeetingNotePreview" class="admin-note-preview"></div>
+          </section>
+        </div>
+      </div>
+    `;
+
+    const titleInput = document.getElementById("adminMeetingNoteTitle");
+    const contentInput = document.getElementById("adminMeetingNoteContent");
+    const previewRoot = document.getElementById("adminMeetingNotePreview");
+
+    function renderPreview() {
+      previewRoot.innerHTML = renderMarkdown(contentInput.value);
+    }
+
+    titleInput.addEventListener("keydown", function (event) {
+      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+        event.preventDefault();
+        document.getElementById("btnAdminMeetingNoteSave").click();
+      }
+    });
+    contentInput.addEventListener("input", renderPreview);
+    contentInput.addEventListener("keydown", function (event) {
+      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+        event.preventDefault();
+        document.getElementById("btnAdminMeetingNoteSave").click();
+      }
+    });
+    renderPreview();
+
+    document.getElementById("btnAdminMeetingNoteCancel").addEventListener("click", function () {
+      if (editing) {
+        renderAdminMeetingNoteDetail(noteId);
+        return;
+      }
+      renderAdminMeetingNoteList(adminMeetingNoteState.items);
+    });
+
+    document.getElementById("btnAdminMeetingNoteSave").addEventListener("click", async function () {
+      try {
+        const body = await api(editing ? `/api/teacher/meeting-notes/${noteId}` : "/api/teacher/meeting-notes", {
+          method: editing ? "PUT" : "POST",
+          body: JSON.stringify({
+            title: titleInput.value,
+            content: contentInput.value
+          })
+        });
+        render(editing ? "회의록이 수정되었습니다." : "회의록이 저장되었습니다.");
+        await loadAdminMeetingNotes();
+        await renderAdminMeetingNoteDetail(body.noteId);
+      } catch (e) {
+        render(e.message);
+      }
     });
   }
 

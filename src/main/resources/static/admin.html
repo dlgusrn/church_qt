@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>QT 관리자 페이지</title>
-  <link rel="stylesheet" href="/admin.css?v=20260318-adminfont2" />
+  <link rel="stylesheet" href="/admin.css?v=20260428-meetingnote-danger-fix" />
 </head>
 <body>
 <main class="wrap">
@@ -67,7 +67,8 @@
     <button class="tab-btn" type="button" data-tab-target="yearclass">연도/반</button>
     <button class="tab-btn" type="button" data-tab-target="pool">교사/학생</button>
     <button class="tab-btn" type="button" data-tab-target="assignment">배정</button>
-    <button class="tab-btn" type="button" data-tab-target="audit">운영 로그</button>
+    <button class="tab-btn" type="button" data-tab-target="meeting-notes">회의록</button>
+    <button class="tab-btn hidden" type="button" data-tab-target="audit">운영 로그</button>
   </nav>
 
   <div class="ops-layout">
@@ -482,7 +483,17 @@
       </div>
     </section>
 
-    <section id="ops-audit" class="panel tab-panel" data-tab-panel="audit">
+    <section id="ops-meeting-notes" class="panel tab-panel" data-tab-panel="meeting-notes">
+      <div class="section-head">
+        <div>
+          <h2>회의록</h2>
+          <p class="section-copy">회의록을 확인하고 필요한 내용을 공유하세요.</p>
+        </div>
+      </div>
+      <div id="adminMeetingNoteRoot"></div>
+    </section>
+
+    <section id="ops-audit" class="panel tab-panel hidden" data-tab-panel="audit" aria-hidden="true">
       <div class="section-head">
         <div>
           <h2>운영 로그</h2>
@@ -513,6 +524,6 @@
   </section>
 </main>
 
-<script src="/admin.js?v=20260318-adminfont2"></script>
+<script src="/admin.js?v=20260428-meetingnote-danger-fix"></script>
 </body>
 </html>

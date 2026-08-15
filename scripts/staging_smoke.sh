@@ -3,10 +3,11 @@ set -euo pipefail
 
 BASE_URL="${1:-}"
 ADMIN_ORIGIN="${2:-http://admin.example.com}"
+APP_ORIGIN="${3:-$ADMIN_ORIGIN}"
 
 if [[ -z "$BASE_URL" ]]; then
-  echo "Usage: $0 <BASE_URL> [ADMIN_ORIGIN]"
-  echo "Example: $0 https://api-staging.example.com https://admin-staging.example.com"
+  echo "Usage: $0 <BASE_URL> [ADMIN_ORIGIN] [APP_ORIGIN]"
+  echo "Example: $0 https://api-staging.example.com https://admin-staging.example.com https://app-staging.example.com"
   exit 1
 fi
 
@@ -48,9 +49,27 @@ function assert_json_response_contains() {
   echo "[OK] $label JSON shape looks valid"
 }
 
+function assert_cors_preflight() {
+  local path="$1"
+  local origin="$2"
+  local method="$3"
+  local cors_headers
+
+  cors_headers=$(curl -si -X OPTIONS "$BASE_URL$path" \
+    -H "Origin: $origin" \
+    -H "Access-Control-Request-Method: $method")
+
+  echo "$cors_headers" | grep -qi "access-control-allow-origin: $origin" || {
+    echo "[FAIL] Missing Access-Control-Allow-Origin for $origin on $path"
+    exit 1
+  }
+  echo "[OK] CORS preflight allows $origin on $path"
+}
+
 echo "== Staging Smoke Test =="
 echo "BASE_URL=$BASE_URL"
 echo "ADMIN_ORIGIN=$ADMIN_ORIGIN"
+echo "APP_ORIGIN=$APP_ORIGIN"
 
 assert_http_code "200" "$BASE_URL/health"
 assert_http_code "200" "$BASE_URL/db-health"
@@ -64,15 +83,10 @@ assert_http_code "404" "$BASE_URL/admin.html"
 assert_http_code "404" "$BASE_URL/ops"
 assert_http_code "404" "$BASE_URL/ops.html"
 
-# CORS preflight check for split frontend.
-cors_headers=$(curl -si -X OPTIONS "$BASE_URL/api/admin/years" \
-  -H "Origin: $ADMIN_ORIGIN" \
-  -H "Access-Control-Request-Method: GET")
-
-echo "$cors_headers" | grep -qi "access-control-allow-origin: $ADMIN_ORIGIN" || {
-  echo "[FAIL] Missing Access-Control-Allow-Origin for $ADMIN_ORIGIN"
-  exit 1
-}
-echo "[OK] CORS preflight allows $ADMIN_ORIGIN"
+# CORS preflight checks for split frontend and browser Origin headers.
+assert_cors_preflight "/api/admin/years" "$ADMIN_ORIGIN" "GET"
+assert_cors_preflight "/api/teacher/login" "$ADMIN_ORIGIN" "POST"
+assert_cors_preflight "/api/teacher/login" "$APP_ORIGIN" "POST"
+assert_cors_preflight "/api/teacher/meeting-notes" "$APP_ORIGIN" "POST"
 
 echo "Smoke test completed successfully."

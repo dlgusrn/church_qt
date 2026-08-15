@@ -55,6 +55,13 @@ if [[ -z "$origins" ]]; then
 fi
 echo "[OK] APP_ADMIN_FRONTEND_ALLOWED_ORIGINS is configured"
 
+app_origins="${APP_APP_FRONTEND_ALLOWED_ORIGINS:-}"
+if [[ -z "$app_origins" ]]; then
+  echo "[FAIL] APP_APP_FRONTEND_ALLOWED_ORIGINS must be configured"
+  exit 1
+fi
+echo "[OK] APP_APP_FRONTEND_ALLOWED_ORIGINS is configured"
+
 jwt_len=${#APP_JWT_SECRET}
 if (( jwt_len < 32 )); then
   echo "[FAIL] APP_JWT_SECRET is too short (length=$jwt_len, required>=32)"

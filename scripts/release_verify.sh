@@ -3,10 +3,11 @@ set -euo pipefail
 
 BASE_URL="${1:-}"
 ADMIN_ORIGIN="${2:-}"
+APP_ORIGIN="${3:-$ADMIN_ORIGIN}"
 
 if [[ -z "$BASE_URL" || -z "$ADMIN_ORIGIN" ]]; then
-  echo "Usage: $0 <BASE_URL> <ADMIN_ORIGIN>"
-  echo "Example: $0 https://api-staging.example.com https://admin-staging.example.com"
+  echo "Usage: $0 <BASE_URL> <ADMIN_ORIGIN> [APP_ORIGIN]"
+  echo "Example: $0 https://api-staging.example.com https://admin-staging.example.com https://app-staging.example.com"
   exit 1
 fi
 
@@ -16,11 +17,12 @@ cd "$ROOT_DIR"
 echo "== Release Verify =="
 echo "BASE_URL=$BASE_URL"
 echo "ADMIN_ORIGIN=$ADMIN_ORIGIN"
+echo "APP_ORIGIN=$APP_ORIGIN"
 
 echo "[1/2] Running release preflight..."
 ./scripts/release_preflight.sh
 
 echo "[2/2] Running staging smoke..."
-./scripts/staging_smoke.sh "$BASE_URL" "$ADMIN_ORIGIN"
+./scripts/staging_smoke.sh "$BASE_URL" "$ADMIN_ORIGIN" "$APP_ORIGIN"
 
 echo "Release verify completed successfully."

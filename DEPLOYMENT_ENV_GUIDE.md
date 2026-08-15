@@ -26,6 +26,15 @@
 - `APP_JWT_SECRET`는 길고 랜덤한 값 사용
 - DB 계정은 최소 권한 원칙 적용
 
+단일 도메인에서 정적 화면과 API를 같이 제공하는 경우:
+- `APP_ADMIN_FRONTEND_ALLOWED_ORIGINS=https://qt.hyungulab.com`
+- `APP_APP_FRONTEND_ALLOWED_ORIGINS=https://qt.hyungulab.com`
+
+HTTPS 리버스 프록시 뒤에서 실행할 때는 프록시가 아래 헤더를 백엔드로 전달해야 합니다:
+- `X-Forwarded-Proto`
+- `X-Forwarded-Host`
+- `X-Forwarded-Port`
+
 ## 5) 정식 프론트 분리 시 체크
 1. 백엔드 CORS Origin이 프론트 도메인과 일치하는지
 2. 로그인/토큰 저장 방식이 `Bearer` 규격을 따르는지
@@ -54,7 +63,7 @@
 ## 6-2) 릴리즈 원샷 검증(권장)
 - 스크립트: `scripts/release_verify.sh`
 - 실행:
-  - `./scripts/release_verify.sh https://api-staging.example.com https://admin-staging.example.com`
+  - `./scripts/release_verify.sh https://api-staging.example.com https://admin-staging.example.com https://app-staging.example.com`
 - 동작:
   1. `release_preflight.sh` 실행
   2. `staging_smoke.sh` 실행
@@ -64,17 +73,19 @@
 - 실행 입력:
   - `base_url`: 스테이징 백엔드 URL
   - `admin_origin`: 스테이징 관리자 프론트 Origin
+  - `app_origin`: 스테이징 앱 프론트 Origin
 - 체크 항목:
   1. `/health` 200
   2. `/db-health` 200
   3. `/admin`, `/admin.html` 404 (정적 콘솔 비노출)
-  4. `/api/admin/years` CORS preflight 허용 확인
+  4. `/api/admin/years`, `/api/teacher/login`, `/api/teacher/meeting-notes` CORS preflight 허용 확인
 
 ## 7-1) 릴리즈 원샷(수동 워크플로)
 - 워크플로: `.github/workflows/release-verify.yml`
 - 실행 입력:
   - `base_url`: 검증 대상 백엔드 URL
   - `admin_origin`: 허용 관리자 프론트 Origin
+  - `app_origin`: 허용 앱 프론트 Origin
 - 필요 Secret:
   - `DB_PASSWORD`, `APP_JWT_SECRET`
   - 선택: `DB_URL` + `DB_USERNAME` 또는 `DB_HOST` + `DB_NAME` + `DB_USER`
@@ -84,7 +95,7 @@
 - 기본 실행:
   - `./scripts/local_smoke.sh`
 - 인자 실행:
-  - `./scripts/local_smoke.sh http://localhost:8080 http://localhost:5173`
+  - `./scripts/local_smoke.sh http://localhost:8080 http://localhost:5173 http://localhost:5173`
 - 선택값:
   - `EXPECT_ADMIN_STATUS` (기본 `404`)
   - 예: `EXPECT_ADMIN_STATUS=200 ./scripts/local_smoke.sh` (로컬에서 admin 콘솔 노출 테스트 시)
