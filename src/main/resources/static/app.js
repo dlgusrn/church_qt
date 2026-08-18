@@ -57,6 +57,32 @@
     return message;
   }
 
+  function extractErrorMessage(value, fallback) {
+    if (value == null) {
+      return fallback || "요청 실패";
+    }
+    if (typeof value === "string") {
+      const text = value.trim();
+      if (!text) {
+        return fallback || "요청 실패";
+      }
+      try {
+        return extractErrorMessage(JSON.parse(text), fallback);
+      } catch (_) {
+        return text;
+      }
+    }
+    if (typeof value === "object") {
+      if (typeof value.message === "string" && value.message.trim()) {
+        return value.message.trim();
+      }
+      if (typeof value.error === "string" && value.error.trim()) {
+        return value.error.trim();
+      }
+    }
+    return fallback || "요청 실패";
+  }
+
   function isYearNotFoundError(error) {
     const message = normalizeErrorMessage(error && error.message);
     return message.includes("해당 연도가 존재하지 않습니다.");
@@ -255,7 +281,7 @@
         body = text;
       }
       if (!response.ok) {
-        const message = typeof body === "string" ? body : JSON.stringify(body);
+        const message = extractErrorMessage(body, "요청 실패");
         throw new Error(message || "요청 실패");
       }
       return body;

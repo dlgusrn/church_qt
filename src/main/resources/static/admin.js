@@ -367,6 +367,18 @@
     result.textContent = typeof data === "string" ? data : JSON.stringify(data, null, 2);
   }
 
+  function setTeacherEditorMessage(message, type) {
+    const el = document.getElementById("teacherEditorMessage");
+    if (!el) {
+      return;
+    }
+    const text = String(message || "").trim();
+    el.textContent = text;
+    el.classList.toggle("hidden", !text);
+    el.classList.toggle("error", type === "error");
+    el.classList.toggle("success", type === "success");
+  }
+
   function setStatus(message) {
     statusLine.textContent = message;
   }
@@ -1484,6 +1496,7 @@
         document.getElementById("teacherEditorRole").value = target.role || "TEACHER";
         document.getElementById("teacherEditorCanCheckAllStudents").checked = !!target.canCheckAllStudents;
         document.getElementById("teacherEditorActive").checked = !!target.active;
+        setTeacherEditorMessage("");
         hideEditorPanel("studentEditorPanel");
         showEditorPanel("teacherEditorPanel");
       });
@@ -1558,6 +1571,7 @@
     document.getElementById("teacherEditorRole").value = "TEACHER";
     document.getElementById("teacherEditorCanCheckAllStudents").checked = false;
     document.getElementById("teacherEditorActive").checked = true;
+    setTeacherEditorMessage("");
     hideEditorPanel("studentEditorPanel");
     showEditorPanel("teacherEditorPanel");
   }
@@ -2396,6 +2410,7 @@
   });
   document.getElementById("btnOpenCreateTeacher").addEventListener("click", openCreateTeacherEditor);
   document.getElementById("btnCloseTeacherEditor").addEventListener("click", function () {
+    setTeacherEditorMessage("");
     hideEditorPanel("teacherEditorPanel");
   });
   document.getElementById("btnOpenCreateStudent").addEventListener("click", openCreateStudentEditor);
@@ -2406,6 +2421,9 @@
     modal.addEventListener("click", function (event) {
       if (event.target !== modal) {
         return;
+      }
+      if (modal.id === "teacherEditorModal") {
+        setTeacherEditorMessage("");
       }
       modal.classList.add("hidden");
     });
@@ -2541,6 +2559,7 @@
       if (!Number.isFinite(Number(year))) {
         throw new Error("관리할 연도를 먼저 선택해 주세요.");
       }
+      setTeacherEditorMessage("저장 중입니다.", "success");
       const createPayload = {
         loginId: document.getElementById("teacherEditorLoginId").value.trim(),
         password: document.getElementById("teacherEditorPassword").value,
@@ -2574,11 +2593,14 @@
         });
       }
       hideEditorPanel("teacherEditorPanel");
+      setTeacherEditorMessage("");
       render(body);
       await loadTeacherPool(teacherPage);
       await refreshYearClasses();
     } catch (e) {
-      render(e.message);
+      const message = extractErrorMessage(e && e.message ? e.message : e, "교사 저장에 실패했습니다.");
+      setTeacherEditorMessage(message, "error");
+      render(message);
     }
   });
 

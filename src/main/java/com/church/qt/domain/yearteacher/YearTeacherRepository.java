@@ -13,6 +13,15 @@ public interface YearTeacherRepository extends JpaRepository<YearTeacher, Long> 
 
     Optional<YearTeacher> findByYearIdAndTeacherId(Long yearId, Long teacherId);
 
+    @Query("""
+        select yt
+        from YearTeacher yt
+        join fetch yt.year y
+        where yt.teacher.id = :teacherId
+        order by y.yearValue desc, y.id desc
+    """)
+    List<YearTeacher> findByTeacherIdOrderByLatestYear(@Param("teacherId") Long teacherId);
+
     boolean existsByYearIdAndTeacherId(Long yearId, Long teacherId);
 
     @Query("""

@@ -24,6 +24,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -72,6 +73,29 @@ class TeacherAppServiceIntegrationTest {
 
     @Autowired
     private MeetingNoteRepository meetingNoteRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Test
+    @DisplayName("활성 연도 운영 명단에서 비활성인 교사는 로그인할 수 없다")
+    void login_withInactiveYearTeacher_rejectsAccess() {
+        Teacher teacher = saveTeacher("inactive_year_teacher_login", TeacherRole.TEACHER, true, false);
+        Year year = saveYear(2027);
+        yearTeacherRepository.save(YearTeacher.builder()
+                .year(year)
+                .teacher(teacher)
+                .sortOrder(0)
+                .active(false)
+                .build());
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> teacherAppService.login(new TeacherLoginRequest("inactive_year_teacher_login", "19900101"))
+        );
+
+        assertEquals("현재 페이지에 접근할 수 없습니다.", exception.getMessage());
+    }
 
     @Test
     @DisplayName("교사 학생 목록은 권한과 무관하게 연도 전체 학생을 조회하고 담당 반 여부를 함께 반환한다")
@@ -417,7 +441,7 @@ class TeacherAppServiceIntegrationTest {
     private Teacher saveTeacher(String loginId, TeacherRole role, boolean active, boolean canCheckAllStudents) {
         return teacherRepository.save(Teacher.builder()
                 .loginId(loginId)
-                .passwordHash("$2a$10$dummyhashdummyhashdummyhashdummyhashdummyhash")
+                .passwordHash(passwordEncoder.encode("19900101"))
                 .teacherName(loginId + "_name")
                 .contactNumber("010-0000-0000")
                 .role(role)

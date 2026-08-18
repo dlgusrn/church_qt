@@ -840,6 +840,20 @@ button.ghost.danger {
   box-shadow: 0 24px 60px #3b28161f;
 }
 
+.editor-message {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.editor-message.error {
+  color: #b42318;
+}
+
+.editor-message.success {
+  color: #067647;
+}
+
 .compact-form {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }

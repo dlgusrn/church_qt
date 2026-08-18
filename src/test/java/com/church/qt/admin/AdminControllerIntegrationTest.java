@@ -518,11 +518,19 @@ class AdminControllerIntegrationTest {
                 "{\"loginId\":\"blocked_teacher_login\",\"password\":\"19920304\"}",
                 null
         );
+        HttpResponse<String> wrongPasswordResponse = request(
+                "POST",
+                "/api/teacher/login",
+                "{\"loginId\":\"blocked_teacher_login\",\"password\":\"wrong-password\"}",
+                null
+        );
 
         assertEquals(200, createResponse.statusCode());
         assertEquals(200, updateResponse.statusCode());
         assertEquals(400, loginResponse.statusCode());
-        assertTrue(loginResponse.body() != null && loginResponse.body().contains("아이디 또는 비밀번호가 올바르지 않습니다."));
+        assertTrue(loginResponse.body() != null && loginResponse.body().contains("현재 페이지에 접근할 수 없습니다."));
+        assertEquals(400, wrongPasswordResponse.statusCode());
+        assertTrue(wrongPasswordResponse.body() != null && wrongPasswordResponse.body().contains("아이디 또는 비밀번호가 올바르지 않습니다."));
     }
 
     @Test

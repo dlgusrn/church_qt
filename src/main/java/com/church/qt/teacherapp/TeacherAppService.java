@@ -18,6 +18,8 @@ import com.church.qt.domain.yearclass.YearClassStudent;
 import com.church.qt.domain.yearclass.YearClassStudentRepository;
 import com.church.qt.domain.yearclass.YearClassTeacherRepository;
 import com.church.qt.domain.yearstudent.YearStudentRepository;
+import com.church.qt.domain.yearteacher.YearTeacher;
+import com.church.qt.domain.yearteacher.YearTeacherRepository;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
@@ -49,6 +51,7 @@ public class TeacherAppService {
     private final YearClassStudentRepository yearClassStudentRepository;
     private final YearClassTeacherRepository yearClassTeacherRepository;
     private final YearStudentRepository yearStudentRepository;
+    private final YearTeacherRepository yearTeacherRepository;
     private final AuditLogService auditLogService;
     private final PasswordPolicyValidator passwordPolicyValidator;
     private final PasswordEncoder passwordEncoder;
@@ -61,15 +64,30 @@ public class TeacherAppService {
 
     @Transactional(readOnly = true)
     public TeacherLoginResponse login(TeacherLoginRequest request) {
-        Teacher teacher = teacherRepository.findByLoginIdAndActiveTrue(request.loginId())
+        Teacher teacher = teacherRepository.findByLoginId(request.loginId())
                 .orElseThrow(() -> new IllegalArgumentException("아이디 또는 비밀번호가 올바르지 않습니다."));
 
         if (!passwordEncoder.matches(request.password(), teacher.getPasswordHash())) {
             throw new IllegalArgumentException("아이디 또는 비밀번호가 올바르지 않습니다.");
         }
+        if (!teacher.getActive()) {
+            throw new IllegalArgumentException("현재 페이지에 접근할 수 없습니다.");
+        }
+        if (isInactiveInLatestYearMembership(teacher.getId())) {
+            throw new IllegalArgumentException("현재 페이지에 접근할 수 없습니다.");
+        }
 
         String accessToken = createAccessToken(teacher);
         return TeacherLoginResponse.from(teacher, accessToken);
+    }
+
+    private boolean isInactiveInLatestYearMembership(Long teacherId) {
+        return yearTeacherRepository.findByTeacherIdOrderByLatestYear(teacherId)
+                .stream()
+                .findFirst()
+                .map(YearTeacher::getActive)
+                .map(active -> !Boolean.TRUE.equals(active))
+                .orElse(false);
     }
 
     @Transactional(readOnly = true)
