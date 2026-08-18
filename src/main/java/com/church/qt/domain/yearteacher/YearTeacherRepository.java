@@ -44,4 +44,16 @@ public interface YearTeacherRepository extends JpaRepository<YearTeacher, Long> 
         order by yt.sortOrder asc, t.teacherName asc, t.id asc
     """)
     List<YearTeacher> findAllByYearId(@Param("yearId") Long yearId, @Param("activeOnly") boolean activeOnly);
+
+    @Query("""
+        select yt
+        from YearTeacher yt
+        join fetch yt.teacher t
+        where yt.year.id in :yearIds
+          and t.id in :teacherIds
+    """)
+    List<YearTeacher> findByYearIdInAndTeacherIdIn(
+            @Param("yearIds") List<Long> yearIds,
+            @Param("teacherIds") List<Long> teacherIds
+    );
 }

@@ -133,7 +133,7 @@ public class AdminService {
         List<String> actionTypes = effectiveIncludeActionTypes ? loadAuditLogActionTypes() : List.of();
         boolean effectiveIncludePools = includePools == null || includePools;
         boolean effectiveIncludeAuditLogs = includeAuditLogs == null || includeAuditLogs;
-        boolean effectivePoolActiveOnly = poolActiveOnly == null || poolActiveOnly;
+        boolean effectivePoolActiveOnly = Boolean.TRUE.equals(poolActiveOnly);
         int validatedPoolLimit = (poolLimit == null || poolLimit < 1) ? 20 : Math.min(poolLimit, 200);
         int validatedAuditLimit = (auditLimit == null || auditLimit < 1) ? 100 : Math.min(auditLimit, 5000);
         int validatedAuditOffset = (auditOffset == null || auditOffset < 0) ? 0 : auditOffset;
@@ -906,7 +906,7 @@ public class AdminService {
                 normalizeContactNumber(request.contactNumber()),
                 normalizeBirthDate(request.birthDate()),
                 parseTeacherRole(request.role()),
-                teacher.getActive(),
+                request.active() == null || request.active(),
                 Boolean.TRUE.equals(request.canCheckAllStudents())
         );
         yearTeacher.update(yearTeacher.getSortOrder(), request.active() == null || request.active());
@@ -1142,10 +1142,28 @@ public class AdminService {
                 .toList();
 
         Map<Long, List<AdminYearClassTeacherResponse>> teacherMapByYearClassId = new LinkedHashMap<>();
-        yearClassTeacherRepository.findByYearClassIdInOrderByYearClassIdAscTeacherTeacherNameAsc(yearClassIds)
-                .forEach(item -> teacherMapByYearClassId
-                        .computeIfAbsent(item.getYearClass().getId(), key -> new ArrayList<>())
-                        .add(AdminYearClassTeacherResponse.from(item)));
+        List<YearClassTeacher> yearClassTeachers = yearClassTeacherRepository.findByYearClassIdInOrderByYearClassIdAscTeacherTeacherNameAsc(yearClassIds);
+        List<Long> teacherIds = yearClassTeachers.stream()
+                .map(item -> item.getTeacher().getId())
+                .distinct()
+                .toList();
+        Map<String, YearTeacher> yearTeacherMap = teacherIds.isEmpty()
+                ? Map.of()
+                : yearTeacherRepository.findByYearIdInAndTeacherIdIn(yearIds, teacherIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        item -> item.getYear().getId() + ":" + item.getTeacher().getId(),
+                        Function.identity(),
+                        (left, right) -> left,
+                        LinkedHashMap::new
+                ));
+        yearClassTeachers.forEach(item -> {
+                    YearTeacher yearTeacher = yearTeacherMap.get(item.getYearClass().getYear().getId() + ":" + item.getTeacher().getId());
+                    boolean active = yearTeacher != null ? Boolean.TRUE.equals(yearTeacher.getActive()) : Boolean.TRUE.equals(item.getTeacher().getActive());
+                    teacherMapByYearClassId
+                            .computeIfAbsent(item.getYearClass().getId(), key -> new ArrayList<>())
+                            .add(AdminYearClassTeacherResponse.from(item, active));
+                });
 
         List<YearClassStudent> yearClassStudents = yearClassStudentRepository.findByYearClassIdInOrderByYearClassIdAscStudentStudentNameAsc(yearClassIds);
         List<Long> studentIds = yearClassStudents.stream()

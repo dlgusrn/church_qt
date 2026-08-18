@@ -11,6 +11,10 @@ import com.church.qt.domain.yearclass.YearClass;
 import com.church.qt.domain.yearclass.YearClassRepository;
 import com.church.qt.domain.yearclass.YearClassStudent;
 import com.church.qt.domain.yearclass.YearClassStudentRepository;
+import com.church.qt.domain.yearclass.YearClassTeacher;
+import com.church.qt.domain.yearclass.YearClassTeacherRepository;
+import com.church.qt.domain.yearteacher.YearTeacher;
+import com.church.qt.domain.yearteacher.YearTeacherRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,6 +55,12 @@ class AdminServiceIntegrationTest {
 
     @Autowired
     private YearClassStudentRepository yearClassStudentRepository;
+
+    @Autowired
+    private YearClassTeacherRepository yearClassTeacherRepository;
+
+    @Autowired
+    private YearTeacherRepository yearTeacherRepository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -107,7 +117,7 @@ class AdminServiceIntegrationTest {
         assertTrue(response.teachers().totalCount() >= 1);
         assertTrue(response.students().totalCount() >= 1);
         assertTrue(response.auditLogs().limit() > 0);
-        assertTrue(response.pool().activeOnly());
+        assertTrue(!response.pool().activeOnly());
         assertNull(response.audit().actorTeacherId());
     }
 
@@ -143,6 +153,49 @@ class AdminServiceIntegrationTest {
         assertEquals(1, response.yearClasses().size());
         assertEquals(4201, response.yearClasses().get(0).yearValue());
         assertEquals("A-class", response.yearClasses().get(0).className());
+    }
+
+    @Test
+    @DisplayName("관리자 반 조회의 배정 교사 active는 연도별 명단 상태를 따른다")
+    void getAdminBootstrap_yearClassTeacherActiveUsesYearTeacherStatus() {
+        Teacher admin = saveTeacher("admin_bootstrap_teacher_active", TeacherRole.ADMIN, true);
+        Teacher teacher = saveTeacher("year_inactive_teacher", TeacherRole.TEACHER, true);
+        Year year = saveYear(4203, true, true, true);
+        YearClass yearClass = saveYearClass(year, "inactive-teacher-class", 1, true);
+        yearTeacherRepository.save(YearTeacher.builder()
+                .year(year)
+                .teacher(teacher)
+                .sortOrder(0)
+                .active(false)
+                .build());
+        yearClassTeacherRepository.save(YearClassTeacher.builder()
+                .yearClass(yearClass)
+                .teacher(teacher)
+                .assignmentRole("HOMEROOM")
+                .build());
+
+        AdminBootstrapResponse response = adminService.getAdminBootstrap(
+                admin.getId(),
+                4203,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+
+        assertEquals(1, response.yearClasses().size());
+        assertEquals(1, response.yearClasses().get(0).teachers().size());
+        assertTrue(!response.yearClasses().get(0).teachers().get(0).active());
     }
 
     @Test
@@ -482,6 +535,7 @@ class AdminServiceIntegrationTest {
     @DisplayName("관리자 교사 생성은 audit_logs에 운영 로그를 남긴다")
     void createTeacher_writesAuditLog() {
         Teacher admin = saveTeacher("admin_audit_writer", TeacherRole.ADMIN, true);
+        saveYear(4701, true, true, true);
 
         AdminTeacherResponse response = adminService.createTeacher(
                 admin.getId(),
@@ -511,6 +565,7 @@ class AdminServiceIntegrationTest {
     @DisplayName("관리자 교사 생성/수정은 전체 학생 체크 권한을 저장한다")
     void createAndUpdateTeacher_persistsCanCheckAllStudents() {
         Teacher admin = saveTeacher("admin_check_access", TeacherRole.ADMIN, true);
+        saveYear(4702, true, true, true);
 
         AdminTeacherResponse created = adminService.createTeacher(
                 admin.getId(),
@@ -546,6 +601,49 @@ class AdminServiceIntegrationTest {
         assertTrue(!updated.canCheckAllStudents());
         Teacher savedTeacher = teacherRepository.findById(created.teacherId()).orElseThrow();
         assertTrue(!savedTeacher.canCheckAllStudents());
+    }
+
+    @Test
+    @DisplayName("관리자 교사 수정에서 비활성화하면 전역 교사 계정도 비활성화한다")
+    void updateTeacher_inactiveUpdatesTeacherAccountActive() {
+        Teacher admin = saveTeacher("admin_teacher_inactive_account", TeacherRole.ADMIN, true);
+        Year year = saveYear(4703, true, true, true);
+        AdminTeacherResponse created = adminService.createTeacher(
+                admin.getId(),
+                year.getYearValue(),
+                new CreateTeacherRequest(
+                        "teacher_inactive_account",
+                        "Password123!",
+                        "비활성교사",
+                        "010-1234-5678",
+                        "19920304",
+                        "TEACHER",
+                        true,
+                        false
+                )
+        );
+
+        AdminTeacherResponse updated = adminService.updateTeacher(
+                admin.getId(),
+                year.getYearValue(),
+                created.teacherId(),
+                new UpdateTeacherRequest(
+                        "비활성교사",
+                        "010-1234-5678",
+                        "19920304",
+                        "TEACHER",
+                        false,
+                        null,
+                        false
+                )
+        );
+
+        Teacher savedTeacher = teacherRepository.findById(created.teacherId()).orElseThrow();
+        YearTeacher savedYearTeacher = yearTeacherRepository.findByYearIdAndTeacherId(year.getId(), created.teacherId()).orElseThrow();
+
+        assertTrue(!updated.active());
+        assertTrue(!savedTeacher.getActive());
+        assertTrue(!savedYearTeacher.getActive());
     }
 
     private Teacher saveTeacher(String loginId, TeacherRole role, boolean active) {

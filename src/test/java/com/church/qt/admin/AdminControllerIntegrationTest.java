@@ -442,6 +442,90 @@ class AdminControllerIntegrationTest {
     }
 
     @Test
+    @DisplayName("교사/학생 목록 API는 activeOnly 생략 시 비활성 인원도 반환한다")
+    void getTeacherAndStudentPools_withoutActiveOnly_includesInactiveItems() throws Exception {
+        saveTeacher("admin_inactive_default", "pass1234", TeacherRole.ADMIN, true);
+        saveTeacher("inactive_default_teacher", "pass1234", TeacherRole.TEACHER, false);
+        saveStudent("inactive_default_student", 4, false);
+        saveYear(nextYearValue(), true, true, true);
+        String adminToken = loginAndGetAccessToken("admin_inactive_default", "pass1234");
+
+        HttpResponse<String> teachersResponse = request(
+                "GET",
+                "/api/admin/teachers?keyword=inactive_default&limit=10&offset=0",
+                null,
+                adminToken
+        );
+        HttpResponse<String> studentsResponse = request(
+                "GET",
+                "/api/admin/students?keyword=inactive_default&limit=10&offset=0",
+                null,
+                adminToken
+        );
+
+        assertEquals(200, teachersResponse.statusCode());
+        assertEquals(200, studentsResponse.statusCode());
+        assertTrue(teachersResponse.body().contains("inactive_default_teacher"));
+        assertTrue(studentsResponse.body().contains("inactive_default_student"));
+    }
+
+    @Test
+    @DisplayName("관리자에서 비활성화한 교사는 로그인할 수 없다")
+    void updateTeacher_inactiveBlocksTeacherLogin() throws Exception {
+        saveTeacher("admin_blocks_teacher_login", "pass1234", TeacherRole.ADMIN, true);
+        int yearValue = nextYearValue();
+        saveYear(yearValue, true, true, true);
+        String adminToken = loginAndGetAccessToken("admin_blocks_teacher_login", "pass1234");
+
+        HttpResponse<String> createResponse = request(
+                "POST",
+                "/api/admin/teachers?year=" + yearValue,
+                """
+                {
+                  "loginId": "blocked_teacher_login",
+                  "password": "Password123!",
+                  "teacherName": "로그인차단교사",
+                  "contactNumber": "010-1234-5678",
+                  "birthDate": "19920304",
+                  "role": "TEACHER",
+                  "active": true,
+                  "canCheckAllStudents": false
+                }
+                """,
+                adminToken
+        );
+        Long teacherId = extractLongJsonField(createResponse.body(), "teacherId");
+
+        HttpResponse<String> updateResponse = request(
+                "PATCH",
+                "/api/admin/teachers/" + teacherId + "?year=" + yearValue,
+                """
+                {
+                  "teacherName": "로그인차단교사",
+                  "contactNumber": "010-1234-5678",
+                  "birthDate": "19920304",
+                  "role": "TEACHER",
+                  "active": false,
+                  "password": null,
+                  "canCheckAllStudents": false
+                }
+                """,
+                adminToken
+        );
+        HttpResponse<String> loginResponse = request(
+                "POST",
+                "/api/teacher/login",
+                "{\"loginId\":\"blocked_teacher_login\",\"password\":\"19920304\"}",
+                null
+        );
+
+        assertEquals(200, createResponse.statusCode());
+        assertEquals(200, updateResponse.statusCode());
+        assertEquals(400, loginResponse.statusCode());
+        assertTrue(loginResponse.body() != null && loginResponse.body().contains("아이디 또는 비밀번호가 올바르지 않습니다."));
+    }
+
+    @Test
     @DisplayName("운영 로그 조회는 actionType/keyword/fromAt/toAt 필터와 CSV 다운로드를 지원한다")
     void auditLogs_filterAndCsvDownload() throws Exception {
         saveTeacher("admin_audit", "pass1234", TeacherRole.ADMIN, true);
@@ -603,6 +687,12 @@ class AdminControllerIntegrationTest {
         Matcher matcher = ACCESS_TOKEN_PATTERN.matcher(responseBody);
         assertTrue(matcher.find(), "login response should contain accessToken");
         return matcher.group(1);
+    }
+
+    private Long extractLongJsonField(String body, String fieldName) {
+        Matcher matcher = Pattern.compile("\"" + fieldName + "\"\\s*:\\s*(\\d+)").matcher(body == null ? "" : body);
+        assertTrue(matcher.find(), "response should contain " + fieldName + ": " + body);
+        return Long.parseLong(matcher.group(1));
     }
 
     private String url(String path) {

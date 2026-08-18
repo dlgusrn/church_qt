@@ -91,10 +91,10 @@ java -jar build/libs/*.jar
 - `PATCH /api/admin/year-classes/{yearClassId}/teachers/{teacherId}/assignment-role`
 - `POST /api/admin/year-classes/{yearClassId}/students`
 - `DELETE /api/admin/year-classes/{yearClassId}/students`
-- `GET /api/admin/teachers?year=YYYY&activeOnly=true&limit=10&offset=0`
+- `GET /api/admin/teachers?year=YYYY&activeOnly=false&limit=10&offset=0`
 - `POST /api/admin/teachers?year=YYYY`
 - `PATCH /api/admin/teachers/{teacherId}?year=YYYY`
-- `GET /api/admin/students?year=YYYY&activeOnly=true&limit=10&offset=0`
+- `GET /api/admin/students?year=YYYY&activeOnly=false&limit=10&offset=0`
 - `POST /api/admin/students?year=YYYY`
 - `PATCH /api/admin/students/{studentId}?year=YYYY`
 - `GET /api/admin/audit-logs?limit=100&offset=0`

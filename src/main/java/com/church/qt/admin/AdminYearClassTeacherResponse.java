@@ -11,13 +11,17 @@ public record AdminYearClassTeacherResponse(
         boolean active
 ) {
     public static AdminYearClassTeacherResponse from(YearClassTeacher yearClassTeacher) {
+        return from(yearClassTeacher, yearClassTeacher.getTeacher().getActive());
+    }
+
+    public static AdminYearClassTeacherResponse from(YearClassTeacher yearClassTeacher, boolean active) {
         return new AdminYearClassTeacherResponse(
                 yearClassTeacher.getTeacher().getId(),
                 yearClassTeacher.getTeacher().getTeacherName(),
                 yearClassTeacher.getTeacher().getContactNumber(),
                 yearClassTeacher.getTeacher().getEffectiveRole().name(),
                 yearClassTeacher.getAssignmentRole(),
-                yearClassTeacher.getTeacher().getActive()
+                active
         );
     }
 }

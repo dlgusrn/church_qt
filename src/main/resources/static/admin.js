@@ -1123,8 +1123,14 @@
     const assignedTeacherIds = new Set((yearClass.teachers || []).map(item => item.teacherId));
     const assignedStudentIds = new Set((yearClass.students || []).map(item => item.studentId));
     const assignedTeacherMap = new Map((yearClass.teachers || []).map(item => [item.teacherId, item]));
+    const activeTeacherCount = (Array.isArray(yearClass.teachers) ? yearClass.teachers : [])
+      .filter(teacher => teacher.active !== false)
+      .length;
+    const activeStudentCount = (Array.isArray(yearClass.students) ? yearClass.students : [])
+      .filter(student => student.active !== false)
+      .length;
     if (summary) {
-      summary.textContent = `${yearClass.yearValue}년 ${yearClass.className} · 교사 ${(yearClass.teachers || []).length}명 · 학생 ${(yearClass.students || []).length}명`;
+      summary.textContent = `${yearClass.yearValue}년 ${yearClass.className} · 교사 ${activeTeacherCount}명 · 학생 ${activeStudentCount}명`;
     }
     const assignmentYearFilter = document.getElementById("assignmentYearFilter");
     if (assignmentYearFilter && Number.isFinite(Number(yearClass.yearValue))) {
@@ -1788,6 +1794,7 @@
 
     const overallStudents = filtered
       .flatMap(item => Array.isArray(item.students) ? item.students : [])
+      .filter(student => student.active !== false)
       .reduce((acc, student) => {
         if (!acc.some(item => item.studentId === student.studentId)) {
           acc.push(student);
@@ -1830,13 +1837,13 @@
     }
 
     dashboardClassBoard.innerHTML = filtered.map(item => {
-      const teachers = (Array.isArray(item.teachers) ? item.teachers : []).slice().sort((a, b) => {
+      const teachers = (Array.isArray(item.teachers) ? item.teachers : []).filter(teacher => teacher.active !== false).slice().sort((a, b) => {
         const aHomeroom = String(a.assignmentRole || "").toUpperCase() === "HOMEROOM" ? 0 : 1;
         const bHomeroom = String(b.assignmentRole || "").toUpperCase() === "HOMEROOM" ? 0 : 1;
         if (aHomeroom !== bHomeroom) return aHomeroom - bHomeroom;
         return String(a.teacherName || "").localeCompare(String(b.teacherName || ""), "ko");
       });
-      const students = (Array.isArray(item.students) ? item.students : []).slice().sort((a, b) => {
+      const students = (Array.isArray(item.students) ? item.students : []).filter(student => student.active !== false).slice().sort((a, b) => {
         const gradeA = Number.isFinite(Number(a.schoolGrade)) ? Number(a.schoolGrade) : -1;
         const gradeB = Number.isFinite(Number(b.schoolGrade)) ? Number(b.schoolGrade) : -1;
         if (gradeA !== gradeB) return gradeB - gradeA;
@@ -2057,7 +2064,7 @@
     }
     const params = new URLSearchParams();
     params.set("year", String(year));
-    params.set("activeOnly", "true");
+    params.set("activeOnly", "false");
     params.set("limit", String(limit));
     params.set("offset", String(offset));
     return params;
@@ -2070,7 +2077,7 @@
     }
     const params = new URLSearchParams();
     params.set("year", String(year));
-    params.set("activeOnly", "true");
+    params.set("activeOnly", "false");
     params.set("limit", String(limit));
     params.set("offset", String(offset));
     return params;
@@ -2569,6 +2576,7 @@
       hideEditorPanel("teacherEditorPanel");
       render(body);
       await loadTeacherPool(teacherPage);
+      await refreshYearClasses();
     } catch (e) {
       render(e.message);
     }

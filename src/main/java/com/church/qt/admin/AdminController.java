@@ -246,7 +246,7 @@ public class AdminController {
     public AdminTeacherListResponse getTeachers(
             @RequestHeader("Authorization") String authorizationHeader,
             @RequestParam(required = false) Integer year,
-            @RequestParam(required = false, defaultValue = "true") Boolean activeOnly,
+            @RequestParam(required = false, defaultValue = "false") Boolean activeOnly,
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "20") Integer limit,
             @RequestParam(defaultValue = "0") Integer offset
@@ -280,7 +280,7 @@ public class AdminController {
     public AdminStudentListResponse getStudents(
             @RequestHeader("Authorization") String authorizationHeader,
             @RequestParam(required = false) Integer year,
-            @RequestParam(required = false, defaultValue = "true") Boolean activeOnly,
+            @RequestParam(required = false, defaultValue = "false") Boolean activeOnly,
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "20") Integer limit,
             @RequestParam(defaultValue = "0") Integer offset
