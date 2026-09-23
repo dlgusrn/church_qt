@@ -368,16 +368,16 @@
       for (let i = 0; i < noteCount; i += 1) {
         markers.push({ type: "note", html: '<span class="day-marker note" aria-label="노트">🍐</span>' });
       }
-      if (day.attitudeChecked) {
-        markers.push({ type: "attitude", html: '<span class="day-marker attitude" aria-label="태도">🫒</span>' });
-      }
+      const attitudeCount = Number(day.attitudeCount || (day.attitudeChecked ? 1 : 0));
+      if (attitudeCount > 0) markers.push({ type: "attitude", html: `<span class="day-marker attitude" aria-label="태도 ${attitudeCount}개">🫒${attitudeCount > 1 ? `<b>×${attitudeCount}</b>` : ""}</span>` });
       const todayClass = day.isToday ? " today" : "";
       const selectedClass = selectedDate && selectedDate === day.date ? " selected" : "";
       cells.push(`
         <button class="day-cell selectable${todayClass}${selectedClass}" data-date="${day.date}">
           <div class="day-num-row">
-            <div class="day-num">${dayNum}</div>
+          <div class="day-num">${dayNum}</div>
             ${day.isBirthday ? '<div class="day-birthday" aria-label="생일 있음">🎂</div>' : ""}
+            ${day.isFruitFestival ? '<div class="day-birthday" aria-label="열매잔치">🎉</div>' : ""}
           </div>
           ${renderDayMarkers(markers)}
         </button>
@@ -596,9 +596,12 @@
           <div class="item-title">${escapeHtml(formatStudentHeading(body.displayName, body.studentName, body.schoolGrade))}</div>
         </div>
         <div class="summary">
-          <div class="box"><div class="label">🍇 QT(포도)</div><div class="value">${body.summary.qtCount}</div></div>
-          <div class="box"><div class="label">🍐 노트(무화과)</div><div class="value">${body.summary.noteCount}</div></div>
-          <div class="box"><div class="label">🫒 태도(올리브)</div><div class="value">${body.summary.attitudeCount}</div></div>
+          <div class="summary-metrics">
+            <div class="box"><div class="label">🍇 QT</div><div class="value">${body.summary.qtCount}</div></div>
+            <div class="box"><div class="label">🍐 노트</div><div class="value">${body.summary.noteCount}</div></div>
+            <div class="box"><div class="label">🫒 태도</div><div class="value">${body.summary.attitudeCount}</div></div>
+            <div class="box deduction-box"><div class="label">차감</div><div class="value">${body.summary.deductionCount || 0}</div></div>
+          </div>
           <div class="box total-box"><div class="label">총 개수</div><div class="value">${body.summary.totalCount}</div></div>
         </div>
         <div class="calendar-nav">
@@ -608,7 +611,7 @@
           <button id="btnNextMonth" class="ghost">다음달</button>
         </div>
         ${renderCalendarGrid(body.days)}
-        <div class="legend">🎂 생일 · 파란 배경은 오늘</div>
+        <div class="legend">🎂 생일 · 🎉 열매잔치 · 파란 배경은 오늘</div>
         ${renderBirthdayList(body.birthdays)}
       </section>
     `;
@@ -672,6 +675,7 @@
     return `
       <nav class="teacher-tab-nav" aria-label="교사 메인 메뉴">
         <button class="teacher-tab-btn ${activeTab === "students" ? "active" : ""}" type="button" data-target="/app/teacher/students?year=${year}">학생명단</button>
+        <button class="teacher-tab-btn ${activeTab === "fruit-adjustments" ? "active" : ""}" type="button" data-target="/app/teacher/fruit-adjustments?year=${year}">열매 차감</button>
         <button class="teacher-tab-btn ${activeTab === "meeting-notes" ? "active" : ""}" type="button" data-target="/app/teacher/meeting-notes?year=${year}">회의록</button>
       </nav>
     `;
@@ -1113,6 +1117,7 @@
             <span class="badge qt">QT ${item.qtCount}</span>
             <span class="badge note">노트 ${item.noteCount}</span>
             <span class="badge attitude">태도 ${item.attitudeCount}</span>
+            <span class="badge deduction">차감 ${item.deductionCount || 0}</span>
             <span class="badge total">총 ${item.totalCount}</span>
           </div>
         </button>
@@ -1147,6 +1152,51 @@
       });
     }
     renderTeacherStudentList();
+  }
+
+  async function renderTeacherFruitAdjustmentsScreen() {
+    setAppMode("teacher");
+    clearError();
+    cleanupTeacherMenuListeners();
+    setHeaderVisible(false);
+    setKickerVisible(false);
+    setTitle("");
+    btnBack.classList.add("hidden");
+
+    const year = await resolveTeacherYear(new URLSearchParams(window.location.search).get("year"));
+    const adjustments = await requestWithTeacherAuth(`/api/teacher/fruit-adjustments?year=${year}`);
+    const teacherName = resolveTeacherDisplayName() || "선생님";
+
+    appRoot.innerHTML = `
+      <section class="panel">
+        <div class="simple-hero teacher-student-hero">
+          <div class="teacher-student-hero-head">
+            <h2 class="simple-title">${escapeHtml(teacherName)} 선생님, 안녕하세요.</h2>
+            ${buildTeacherMenuMarkup()}
+          </div>
+          <p class="simple-copy">${year}년 열매 차감 내역입니다.</p>
+        </div>
+        ${buildTeacherTabMarkup("fruit-adjustments", year)}
+        <div class="teacher-fruit-adjustment-list">
+          ${Array.isArray(adjustments) && adjustments.length ? `
+            <div class="teacher-fruit-adjustment-table-wrap">
+              <table class="teacher-fruit-adjustment-table">
+                <thead><tr><th>날짜</th><th>학생</th><th>차감</th><th class="teacher-fruit-adjustment-reason">사유</th><th>처리 교사</th></tr></thead>
+                <tbody>${adjustments.map(item => `<tr>
+                  <td>${escapeHtml(item.date || "-")}</td>
+                  <td>${escapeHtml(item.studentName || "-")}</td>
+                  <td class="teacher-fruit-adjustment-amount">${escapeHtml(String(item.amount ?? "-"))}</td>
+                  <td class="teacher-fruit-adjustment-reason">${escapeHtml(item.reason || "-")}</td>
+                  <td>${escapeHtml(item.adjustedBy || "-")}</td>
+                </tr>`).join("")}</tbody>
+              </table>
+            </div>
+          ` : '<div class="empty-state">차감 내역이 없습니다.</div>'}
+        </div>
+      </section>
+    `;
+
+    bindTeacherShellActions();
   }
 
   async function renderTeacherMeetingNotesScreen() {
@@ -1448,7 +1498,7 @@
 
     let selectedDate = null;
     let baseQt = false;
-    let baseAttitude = false;
+    let baseAttitudeCount = 0;
     let baseNoteCount = 0;
     const autoAdvanceNextDay = true;
     const permissions = await resolveTeacherCheckPermissions(studentId, year);
@@ -1462,6 +1512,9 @@
       document.getElementById("noteCountInput").value = String(safeValue);
       document.getElementById("noteCountValue").textContent = String(safeValue);
     }
+
+    function getCurrentAttitudeCount() { return Number(document.getElementById("attitudeCountInput").value || 0); }
+    function setCurrentAttitudeCount(value) { document.getElementById("attitudeCountInput").value = String(Math.max(0, Math.min(99, Number(value) || 0))); }
 
     function applyCheckFieldPermissions() {
       const toggleQt = document.getElementById("toggleQt");
@@ -1481,9 +1534,9 @@
     function hasUnsavedChanges() {
       if (!selectedDate) return false;
       const currentQt = document.getElementById("toggleQt").checked;
-      const currentAttitude = document.getElementById("toggleAttitude").checked;
+      const currentAttitude = getCurrentAttitudeCount();
       const currentNoteCount = getCurrentNoteCount();
-      return currentQt !== baseQt || currentAttitude !== baseAttitude || currentNoteCount !== baseNoteCount;
+      return currentQt !== baseQt || currentAttitude !== baseAttitudeCount || currentNoteCount !== baseNoteCount;
     }
 
     function confirmDiscardIfNeeded() {
@@ -1497,13 +1550,17 @@
       const idx = (body.days || []).findIndex(day => day.date === selectedDate);
       if (idx < 0) return;
       const nextIdx = idx + step;
-      if (nextIdx < 0 || nextIdx >= (body.days || []).length) return;
+      if (nextIdx < 0 || nextIdx >= (body.days || []).length) {
+        const targetMonth = new Date(year, month - 1 + step, 1);
+        navigate(`${buildPathWithYearMonth(`/app/teacher/students/${studentId}/calendar`, targetMonth.getFullYear(), targetMonth.getMonth() + 1)}${fromAdmin ? "&source=admin" : ""}`);
+        return;
+      }
       syncPanelFromDate(body.days[nextIdx].date);
     }
 
     function adjustSummaryAfterSave(previousQt, previousAttitude, previousNoteCount, nextQt, nextAttitude, nextNoteCount) {
       const qtDelta = (nextQt ? 1 : 0) - (previousQt ? 1 : 0);
-      const attitudeDelta = (nextAttitude ? 1 : 0) - (previousAttitude ? 1 : 0);
+      const attitudeDelta = nextAttitude - previousAttitude;
       const noteDelta = nextNoteCount - previousNoteCount;
       body.summary.qtCount += qtDelta;
       body.summary.attitudeCount += attitudeDelta;
@@ -1525,10 +1582,10 @@
       const target = (body.days || []).find(day => day.date === dateText);
       selectedDate = dateText;
       baseQt = !!(target && target.qtChecked);
-      baseAttitude = !!(target && target.attitudeChecked);
+      baseAttitudeCount = Number(target && (target.attitudeCount || (target.attitudeChecked ? 1 : 0)) || 0);
       baseNoteCount = Number(target && target.noteCount ? target.noteCount : 0);
       document.getElementById("toggleQt").checked = baseQt;
-      document.getElementById("toggleAttitude").checked = baseAttitude;
+      setCurrentAttitudeCount(baseAttitudeCount);
       setCurrentNoteCount(baseNoteCount);
       document.getElementById("checkPanel").classList.remove("hidden");
       applyCheckFieldPermissions();
@@ -1545,9 +1602,9 @@
         return;
       }
       const currentQt = document.getElementById("toggleQt").checked;
-      const currentAttitude = document.getElementById("toggleAttitude").checked;
+      const currentAttitude = getCurrentAttitudeCount();
       const currentNoteCount = getCurrentNoteCount();
-      const changed = currentQt !== baseQt || currentAttitude !== baseAttitude || currentNoteCount !== baseNoteCount;
+      const changed = currentQt !== baseQt || currentAttitude !== baseAttitudeCount || currentNoteCount !== baseNoteCount;
       saveButton.disabled = !changed;
       saveButton.textContent = changed ? "저장" : "변경 없음";
     }
@@ -1576,9 +1633,12 @@
           </div>
         </div>
         <div class="summary">
-          <div class="box"><div class="label">🍇 QT(포도)</div><div id="summaryQtCount" class="value">${body.summary.qtCount}</div></div>
-          <div class="box"><div class="label">🍐 노트(무화과)</div><div id="summaryNoteCount" class="value">${body.summary.noteCount}</div></div>
-          <div class="box"><div class="label">🫒 태도(올리브)</div><div id="summaryAttitudeCount" class="value">${body.summary.attitudeCount}</div></div>
+          <div class="summary-metrics">
+            <div class="box"><div class="label">🍇 QT</div><div id="summaryQtCount" class="value">${body.summary.qtCount}</div></div>
+            <div class="box"><div class="label">🍐 노트</div><div id="summaryNoteCount" class="value">${body.summary.noteCount}</div></div>
+            <div class="box"><div class="label">🫒 태도</div><div id="summaryAttitudeCount" class="value">${body.summary.attitudeCount}</div></div>
+            <div class="box deduction-box"><div class="label">차감</div><div id="summaryDeductionCount" class="value">${body.summary.deductionCount || 0}</div></div>
+          </div>
           <div class="box total-box"><div class="label">총 개수</div><div id="summaryTotalCount" class="value">${body.summary.totalCount}</div></div>
         </div>
         <div class="calendar-nav">
@@ -1595,6 +1655,7 @@
           <div class="quick-row">
             <button id="btnMarkAll" class="ghost" type="button">전체 체크</button>
             <button id="btnClearAll" class="ghost" type="button">전체 해제</button>
+            <button id="btnFruitMinus" class="ghost" type="button">열매 차감</button>
           </div>
           <div class="switch-row">
             <label><input id="toggleQt" type="checkbox" /> QT</label>
@@ -1607,7 +1668,7 @@
               <input id="noteCountInput" type="hidden" value="0" />
             </div>
             <span class="switch-divider" aria-hidden="true">|</span>
-            <label><input id="toggleAttitude" type="checkbox" /> 태도</label>
+            <label class="attitude-input-label">올리브 <input id="attitudeCountInput" type="number" min="0" max="99" inputmode="numeric" value="0" /></label>
           </div>
           ${permissions.canEditQt && permissions.canEditNote ? "" : permissions.canEditQt ? '<div class="legend">다른 반 학생은 QT와 태도만 체크할 수 있습니다.</div>' : '<div class="legend">다른 반 학생은 태도만 체크할 수 있습니다.</div>'}
           <div class="save-row">
@@ -1658,7 +1719,7 @@
       if (permissions.canEditNote) {
         setCurrentNoteCount(3);
       }
-      document.getElementById("toggleAttitude").checked = true;
+      setCurrentAttitudeCount(1);
       updateSaveButtonState();
     });
 
@@ -1669,12 +1730,25 @@
       if (permissions.canEditNote) {
         setCurrentNoteCount(0);
       }
-      document.getElementById("toggleAttitude").checked = false;
+      setCurrentAttitudeCount(0);
       updateSaveButtonState();
     });
 
+    document.getElementById("btnFruitMinus").addEventListener("click", async () => {
+      if (!selectedDate) { showError("먼저 날짜를 선택하세요."); return; }
+      const count = Number(window.prompt("차감할 개수", "1"));
+      if (!Number.isInteger(count) || count < 1) { showError("1 이상의 정수를 입력하세요."); return; }
+      const reason = window.prompt("차감 사유 (선택)", "") || "";
+      try {
+        await requestWithTeacherAuth("/api/teacher/fruit-adjustments", { method: "POST", body: JSON.stringify({ studentId: Number(studentId), year, amount: -count, date: selectedDate, reason }) });
+        body.summary.totalCount -= count;
+        document.getElementById("summaryTotalCount").textContent = String(body.summary.totalCount);
+        showToast("총 열매에서 차감했습니다.");
+      } catch (e) { showError(normalizeErrorMessage(e.message)); }
+    });
+
     document.getElementById("toggleQt").addEventListener("change", updateSaveButtonState);
-    document.getElementById("toggleAttitude").addEventListener("change", updateSaveButtonState);
+    document.getElementById("attitudeCountInput").addEventListener("input", updateSaveButtonState);
     document.getElementById("btnNoteMinus").addEventListener("click", () => {
       if (!permissions.canEditNote) return;
       setCurrentNoteCount(getCurrentNoteCount() - 1);
@@ -1705,10 +1779,10 @@
         saveButton.textContent = "저장 중...";
         const dayTarget = (body.days || []).find(day => day.date === selectedDate);
         const previousQt = !!(dayTarget && dayTarget.qtChecked);
-        const previousAttitude = !!(dayTarget && dayTarget.attitudeChecked);
+        const previousAttitude = Number(dayTarget && (dayTarget.attitudeCount || (dayTarget.attitudeChecked ? 1 : 0)) || 0);
         const previousNoteCount = Number(dayTarget && dayTarget.noteCount ? dayTarget.noteCount : 0);
         const qtChecked = document.getElementById("toggleQt").checked;
-        const attitudeChecked = document.getElementById("toggleAttitude").checked;
+        const attitudeCount = getCurrentAttitudeCount();
         const noteCount = getCurrentNoteCount();
         await requestWithTeacherAuth("/api/teacher/check", {
           method: "POST",
@@ -1717,19 +1791,21 @@
             year,
             date: selectedDate,
             qtChecked,
-            attitudeChecked,
+            attitudeChecked: attitudeCount > 0,
+            attitudeCount,
             noteCount
           })
         });
         if (dayTarget) {
           dayTarget.qtChecked = qtChecked;
-          dayTarget.attitudeChecked = attitudeChecked;
+          dayTarget.attitudeChecked = attitudeCount > 0;
+          dayTarget.attitudeCount = attitudeCount;
           dayTarget.noteCount = noteCount;
         }
         baseQt = qtChecked;
-        baseAttitude = attitudeChecked;
+        baseAttitudeCount = attitudeCount;
         baseNoteCount = noteCount;
-        adjustSummaryAfterSave(previousQt, previousAttitude, previousNoteCount, qtChecked, attitudeChecked, noteCount);
+        adjustSummaryAfterSave(previousQt, previousAttitude, previousNoteCount, qtChecked, attitudeCount, noteCount);
         renderCalendarOnly();
         updateSaveButtonState();
         showToast("저장되었습니다.");
@@ -1804,6 +1880,15 @@
           return;
         }
         await renderTeacherMeetingNotesScreen();
+        return;
+      }
+
+      if (path === "/app/teacher/fruit-adjustments") {
+        if (isTeacherPasswordChangeRequired()) {
+          navigate("/app/teacher/password");
+          return;
+        }
+        await renderTeacherFruitAdjustmentsScreen();
         return;
       }
 

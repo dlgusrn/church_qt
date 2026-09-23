@@ -2,6 +2,7 @@ package com.church.qt.teacherapp;
 
 import com.church.qt.domain.devotion.DevotionCheckRepository;
 import com.church.qt.domain.devotion.DevotionCheck;
+import com.church.qt.domain.fruit.FruitAdjustmentRepository;
 import com.church.qt.domain.meetingnote.MeetingNoteRepository;
 import com.church.qt.domain.student.Student;
 import com.church.qt.domain.student.StudentRepository;
@@ -73,6 +74,9 @@ class TeacherAppServiceIntegrationTest {
 
     @Autowired
     private MeetingNoteRepository meetingNoteRepository;
+
+    @Autowired
+    private FruitAdjustmentRepository fruitAdjustmentRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -300,6 +304,37 @@ class TeacherAppServiceIntegrationTest {
         assertTrue(Boolean.TRUE.equals(check.getQtChecked()));
         assertTrue(Boolean.TRUE.equals(check.getAttitudeChecked()));
         assertEquals(3, check.getNoteCount());
+    }
+
+    @Test
+    @DisplayName("교사는 담당 반이 아닌 학생의 열매도 차감할 수 있다")
+    void createFruitAdjustment_allowsUnassignedStudent() {
+        Teacher teacher = saveTeacher("fruit_adjustment_teacher", TeacherRole.TEACHER, true, false);
+        Year year = saveYear(2035);
+        saveYearTeacher(year, teacher);
+        YearClass otherClass = saveYearClass(year, "열매다른반");
+        Student student = saveStudent("열매차감학생");
+        saveYearStudent(year, student, "6");
+        saveYearClassStudent(year, otherClass, student);
+
+        teacherAppService.createFruitAdjustment(
+                teacher.getId(),
+                new CreateFruitAdjustmentRequest(student.getId(), year.getYearValue(), -1, LocalDate.of(2035, 3, 14), "사유")
+        );
+
+        assertEquals(-1L, fruitAdjustmentRepository.sumAmount(
+                year.getId(), student.getId(), com.church.qt.domain.fruit.FruitType.TOTAL,
+                LocalDate.of(2035, 1, 1), LocalDate.of(2035, 12, 31)
+        ));
+
+        TeacherFruitAdjustmentResponse adjustment = teacherAppService.getFruitAdjustments(teacher.getId(), year.getYearValue())
+                .stream()
+                .findFirst()
+                .orElseThrow();
+        assertEquals("열매차감학생", adjustment.studentName());
+        assertEquals(-1, adjustment.amount());
+        assertEquals("사유", adjustment.reason());
+        assertEquals("fruit_adjustment_teacher_name", adjustment.adjustedBy());
     }
 
     @Test

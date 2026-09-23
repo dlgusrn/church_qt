@@ -4,6 +4,7 @@ public record StudentCalendarSummaryResponse(
         long qtCount,
         long attitudeCount,
         long noteCount,
+        long deductionCount,
         long totalCount
 ) {
 }

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>QT 관리자 페이지</title>
-  <link rel="stylesheet" href="/admin.css?v=20260428-meetingnote-danger-fix" />
+  <link rel="stylesheet" href="/admin.css?v=20260917-festival-modal" />
 </head>
 <body>
 <main class="wrap">
@@ -64,6 +64,7 @@
   </section>
   <nav class="tab-bar" aria-label="관리자 기능 탭">
     <button class="tab-btn active" type="button" data-tab-target="dashboard">대시보드</button>
+    <button class="tab-btn" type="button" data-tab-target="fruit">열매 관리</button>
     <button class="tab-btn" type="button" data-tab-target="yearclass">연도/반</button>
     <button class="tab-btn" type="button" data-tab-target="pool">교사/학생</button>
     <button class="tab-btn" type="button" data-tab-target="assignment">배정</button>
@@ -100,6 +101,14 @@
         <label><input id="filterActiveOnly" type="checkbox" /> 활성 반만</label>
         <button id="btnApplyFilter" class="ghost" type="button">필터 적용</button>
       </div>
+    </section>
+
+    <section id="ops-fruit" class="panel tab-panel" data-tab-panel="fruit">
+      <div class="section-head"><div><h2>열매 관리</h2><p class="section-copy">회차 초기화, 회차별 열매 조회, 총 열매 차감을 관리합니다.</p></div></div>
+      <div class="subtab-bar" aria-label="열매 관리 서브탭"><button class="subtab-btn active" type="button" data-fruit-tab-target="status">열매 현황</button><button class="subtab-btn" type="button" data-fruit-tab-target="festival">열매잔치 관리</button></div>
+      <section class="manager-panel fruit-panel active" data-fruit-panel="status"><div class="manager-head"><div><h3>회차별 열매 현황</h3><p class="section-copy">각 회차별 열매 수량을 확인할 수 있습니다.</p></div></div><div class="toolbar-row"><label>연도 선택 <select id="fruitRoundYearSelect"></select></label></div><div class="fruit-primary-action"><button id="btnCreateFruitRound" type="button">초기화</button></div><div id="fruitRoundList" class="fruit-round-list"></div><div id="fruitRoundResults" class="table-card"></div><section class="manager-panel top-gap"><div class="manager-head"><div><h3>총 열매 차감 관리</h3><p class="section-copy">잘못 입력한 차감은 취소하면 즉시 총합에 복구됩니다.</p></div></div><div id="fruitAdjustmentList" class="table-card"></div></section></section>
+      <section class="manager-panel fruit-panel" data-fruit-panel="festival"><div class="manager-head"><div><h3>열매잔치 일정</h3><p class="section-copy">등록한 날짜는 학생과 교사 달력에 표시됩니다.</p></div></div><div class="toolbar-row"><label>연도 선택 <select id="fruitFestivalYearSelect"></select></label></div><div class="fruit-primary-action"><button id="btnOpenFruitFestivalEditor" type="button">등록</button></div><div id="fruitFestivalList" class="table-card"></div></section>
+      <div id="fruitFestivalEditor" class="editor-modal hidden" data-editor-modal><section class="editor-panel fruit-festival-editor"><div class="manager-head"><div><h3>열매잔치 등록</h3><p class="section-copy">열매잔치 날짜를 선택하세요.</p></div><div class="row-actions"><button id="btnCancelFruitFestival" class="ghost" type="button">취소</button><button id="btnSaveFruitFestival" type="button">저장</button></div></div><label class="festival-date-card"><span>📅 열매잔치 날짜</span><input id="fruitFestivalDate" type="date" /></label></section></div>
     </section>
 
     <section id="ops-yearclass" class="panel tab-panel" data-tab-panel="yearclass">
@@ -525,6 +534,6 @@
   </section>
 </main>
 
-<script src="/admin.js?v=20260428-meetingnote-danger-fix"></script>
+<script src="/admin.js?v=20260917-festival-delete"></script>
 </body>
 </html>

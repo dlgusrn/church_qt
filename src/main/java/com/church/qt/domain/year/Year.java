@@ -7,6 +7,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
+
 @Getter
 @Entity
 @Table(name = "years")
@@ -29,6 +31,12 @@ public class Year extends BaseTimeEntity {
     @Column(name = "is_active", nullable = false)
     private Boolean active;
 
+    @Column(name = "fruit_reset_date")
+    private LocalDate fruitResetDate;
+
+    @Column(name = "fruit_festival_date")
+    private LocalDate fruitFestivalDate;
+
     @Builder
     public Year(
             Integer yearValue,
@@ -49,5 +57,13 @@ public class Year extends BaseTimeEntity {
 
     public void updateActive(boolean active) {
         this.active = active;
+    }
+
+    public void resetFruitCounts(LocalDate resetDate) {
+        this.fruitResetDate = resetDate;
+    }
+
+    public void updateFruitFestivalDate(LocalDate festivalDate) {
+        this.fruitFestivalDate = festivalDate;
     }
 }

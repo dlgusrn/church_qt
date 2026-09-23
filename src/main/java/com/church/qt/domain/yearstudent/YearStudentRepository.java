@@ -85,7 +85,7 @@ public interface YearStudentRepository extends JpaRepository<YearStudent, Long> 
                   and ycs.student = s
             ) then true else false end,
             coalesce(sum(case when dc.qtChecked = true then 1 else 0 end), 0L),
-            coalesce(sum(case when dc.attitudeChecked = true then 1 else 0 end), 0L),
+            coalesce(sum(dc.attitudeCount), 0L),
             coalesce(sum(dc.noteCount), 0L)
         )
         from YearStudent ys

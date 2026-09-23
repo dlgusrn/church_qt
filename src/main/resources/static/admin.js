@@ -228,6 +228,7 @@
         render(e.message);
       });
     }
+    if (activeTab === "fruit") loadFruitRounds().catch(e => render(e.message));
   }
 
   function setActiveTab(tabName) {
@@ -254,6 +255,7 @@
         renderAssignmentManagement();
       }
     }
+    if (safeTab === "fruit" && adminToken) loadFruitRounds().catch(e => render(e.message));
     if (safeTab === "yearclass") {
       setYearClassTab("years");
     }
@@ -1011,6 +1013,9 @@
     if (normalized === "UPDATE_STUDENT") return "학생 수정";
     if (normalized === "SAVE_DEVOTION_CHECK") return "열매 체크";
     if (normalized === "DELETE_DEVOTION_CHECK") return "열매 해제";
+    if (normalized === "CREATE_FRUIT_ADJUSTMENT") return "열매 차감";
+    if (normalized === "RESET_FRUIT_COUNTS") return "열매 수량 초기화";
+    if (normalized === "UPDATE_FRUIT_FESTIVAL") return "열매잔치 날짜 설정";
     return normalized || "-";
   }
 
@@ -1065,10 +1070,10 @@
 
   function getPoolYearValue() {
     const selected = Number(poolYearFilter && poolYearFilter.value);
-    if (Number.isFinite(selected)) {
+    if (Number.isFinite(selected) && selected > 0) {
       return selected;
     }
-    return getActiveYearValue();
+    return getActiveYearValue() || Number(cachedYears[0] && cachedYears[0].yearValue) || null;
   }
 
   function currentAssignmentYearClassId() {
@@ -1080,10 +1085,10 @@
 
   function getAssignmentYearValue() {
     const selected = Number(document.getElementById("assignmentYearFilter").value);
-    if (Number.isFinite(selected)) {
+    if (Number.isFinite(selected) && selected > 0) {
       return selected;
     }
-    return getActiveYearValue();
+    return getActiveYearValue() || Number(cachedYears[0] && cachedYears[0].yearValue) || null;
   }
 
   function currentAssignmentYearClass() {
@@ -1093,16 +1098,17 @@
 
   function syncAssignmentYearClassOptions() {
     const select = document.getElementById("assignmentYearClassSelect");
-    const options = cachedYearClasses.map(item =>
+    const current = currentAssignmentYearClassId();
+    const activeClasses = cachedYearClasses.filter(item => item.active !== false);
+    const options = activeClasses.map(item =>
       `<option value="${item.yearClassId}">${escapeHtml(item.className)}</option>`
     ).join("");
     select.innerHTML = options;
 
-    const current = currentAssignmentYearClassId();
-    if (current && cachedYearClasses.some(item => item.yearClassId === current)) {
+    if (current && activeClasses.some(item => item.yearClassId === current)) {
       setAssignmentTarget(current);
-    } else if (cachedYearClasses[0]) {
-      setAssignmentTarget(cachedYearClasses[0].yearClassId);
+    } else if (activeClasses[0]) {
+      setAssignmentTarget(activeClasses[0].yearClassId);
     } else {
       document.getElementById("assignTeacherYearClassId").value = "";
       document.getElementById("assignStudentYearClassId").value = "";
@@ -1124,7 +1130,7 @@
 
     const teacherAssignmentMap = new Map();
     const studentAssignmentMap = new Map();
-    cachedYearClasses.forEach(item => {
+    cachedYearClasses.filter(item => item.active !== false).forEach(item => {
       (item.teachers || []).forEach(teacher => {
         teacherAssignmentMap.set(teacher.teacherId, item.className || "-");
       });
@@ -1266,8 +1272,8 @@
   async function loadAssignmentPools() {
     const assignmentYear = getAssignmentYearValue()
       || (currentAssignmentYearClass() && currentAssignmentYearClass().yearValue)
-      || (Number.isFinite(Number(queryYearInput.value)) ? Number(queryYearInput.value) : null);
-    if (!Number.isFinite(Number(assignmentYear))) {
+      || (Number.isFinite(Number(queryYearInput.value)) && Number(queryYearInput.value) > 0 ? Number(queryYearInput.value) : null);
+    if (!Number.isFinite(Number(assignmentYear)) || Number(assignmentYear) <= 0) {
       assignmentTeacherItems = [];
       assignmentStudentItems = [];
       renderAssignmentManagement();
@@ -1787,7 +1793,7 @@
   }
 
   function applyFilterAndRender() {
-    const filtered = cachedYearClasses.slice();
+    const filtered = cachedYearClasses.filter(item => item.active !== false);
     const activeYear = getActiveYearValue()
       || (Number.isFinite(Number(dashboardYearValue)) ? Number(dashboardYearValue) : null)
       || (filtered[0] ? filtered[0].yearValue : null);
@@ -1830,6 +1836,7 @@
               <th>QT</th>
               <th>노트</th>
               <th>태도</th>
+              <th>차감</th>
               <th>총합</th>
             </tr>
           </thead>
@@ -1839,10 +1846,11 @@
                 <td data-label="순위">${index + 1}</td>
                 <td data-label="이름">${escapeHtml(student.studentName)}</td>
                 <td data-label="학년">${escapeHtml(formatSchoolGrade(student.schoolGrade))}</td>
-                <td data-label="QT"><strong>${student.qtCount || 0}</strong></td>
-                <td data-label="노트">${student.noteCount || 0}</td>
-                <td data-label="태도">${student.attitudeCount || 0}</td>
-                <td data-label="총합">${student.totalCount || 0}</td>
+                <td data-label="QT">${student.qtCount || 0}${student.qtAdjustment ? ` <small>(${student.qtAdjustment})</small>` : ""}</td>
+                <td data-label="노트">${student.noteCount || 0}${student.noteAdjustment ? ` <small>(${student.noteAdjustment})</small>` : ""}</td>
+                <td data-label="태도">${student.attitudeCount || 0}${student.attitudeAdjustment ? ` <small>(${student.attitudeAdjustment})</small>` : ""}</td>
+                <td data-label="차감" class="deduction-value">${student.deductionCount || 0}</td>
+                <td data-label="총합"><strong>${student.totalCount || 0}</strong></td>
               </tr>
             `).join("")}
           </tbody>
@@ -1882,7 +1890,7 @@
               <button class="student-link-card btnOpenStudentCalendar" type="button" data-student-id="${student.studentId}" data-year-value="${item.yearValue}">
                 <div class="student-link-main">
                   <strong class="student-link-name">${escapeHtml(student.studentName)}${student.schoolGrade ? ` (${escapeHtml(student.schoolGrade)}학년)` : ""}</strong>
-                  <span class="badge-soft student-link-fruits">🍇 QT ${student.qtCount || 0} · 🍐 노트 ${student.noteCount || 0} · 🫒 태도 ${student.attitudeCount || 0}</span>
+                  <span class="badge-soft student-link-fruits">🍇 QT ${student.qtCount || 0} · 🍐 노트 ${student.noteCount || 0} · 🫒 태도 ${student.attitudeCount || 0} · 차감 ${student.deductionCount || 0}</span>
                 </div>
                 <div class="student-link-sub">총 ${student.totalCount || 0}개 · 누르면 체크 달력 열기</div>
               </button>
@@ -1916,8 +1924,8 @@
 
   async function refreshYearClasses() {
     const requestedYear = Number(queryYearInput.value);
-    const year = Number.isFinite(requestedYear) ? requestedYear : getActiveYearValue();
-    if (!Number.isFinite(year)) throw new Error("조회 연도를 입력하세요.");
+    const year = Number.isFinite(requestedYear) && requestedYear > 0 ? requestedYear : getActiveYearValue();
+    if (!Number.isFinite(year) || year <= 0) throw new Error("조회 연도를 입력하세요.");
     dashboardYearValue = year;
     queryYearInput.value = String(year);
     const body = await api("/api/admin/year-classes?year=" + year, { method: "GET" });
@@ -1935,6 +1943,94 @@
     await loadAssignmentPools();
     return body;
   }
+
+  async function loadFruitRounds() {
+    const select = document.getElementById("fruitRoundYearSelect");
+    if (!select) return;
+    const selected = select.value || String(getActiveYearValue() || cachedYears[0]?.yearValue || "");
+    select.innerHTML = cachedYears.map(y => `<option value="${y.id}">${y.yearValue}년</option>`).join("");
+    const year = cachedYears.find(y => String(y.id) === String(selected)) || cachedYears.find(y => y.active) || cachedYears[0];
+    if (!year) return;
+    select.value = String(year.id);
+    const rounds = await api(`/api/admin/years/${year.id}/fruit-rounds`, { method: "GET" });
+    const root = document.getElementById("fruitRoundList");
+    root.innerHTML = rounds.map(round => `<button class="fruit-round-card${round.current ? " active" : ""}" data-from="${round.from}" data-to="${round.to}"><strong>${round.roundNumber}회차${round.current ? " (진행 중)" : ""}</strong><span>${round.from} ~ ${round.current ? "현재" : round.to}</span></button>`).join("");
+    root.querySelectorAll("button").forEach(button => button.addEventListener("click", () => loadFruitRoundResults(year.yearValue, button.dataset.from, button.dataset.to)));
+    if (rounds.length) await loadFruitRoundResults(year.yearValue, rounds[rounds.length - 1].from, rounds[rounds.length - 1].to);
+    await loadFruitAdjustments(year.id);
+  }
+
+  async function loadFruitAdjustments(yearId) {
+    const items = await api(`/api/admin/years/${yearId}/fruit-adjustments`, { method: "GET" });
+    const root = document.getElementById("fruitAdjustmentList");
+    root.innerHTML = items.length ? `<table class="manager-table"><thead><tr><th>날짜</th><th>학생</th><th>차감</th><th>사유</th><th>처리 교사</th><th></th></tr></thead><tbody>${items.map(item => `<tr><td>${item.date}</td><td>${escapeHtml(item.studentName)}</td><td>${item.amount}</td><td>${escapeHtml(item.reason || "-")}</td><td>${escapeHtml(item.adjustedBy)}</td><td><button class="ghost danger btnCancelFruitAdjustment" data-id="${item.id}" type="button">차감 취소</button></td></tr>`).join("")}</tbody></table>` : '<div class="table-empty">차감 내역이 없습니다.</div>';
+    root.querySelectorAll(".btnCancelFruitAdjustment").forEach(button => button.addEventListener("click", async () => {
+      if (!window.confirm("이 차감을 취소하고 총 열매에 다시 반영할까요?")) return;
+      try { await api(`/api/admin/fruit-adjustments/${button.dataset.id}`, { method: "DELETE" }); await loadFruitRounds(); render("차감을 취소했습니다."); } catch (e) { render(e.message); }
+    }));
+  }
+
+  async function loadFruitRoundResults(year, from, to) {
+    const rows = await api(`/api/admin/year-classes?year=${year}&from=${from}&to=${to}`, { method: "GET" });
+    const students = rows.flatMap(row => row.students || []).filter(s => s.active !== false).reduce((list, s) => list.some(x => x.studentId === s.studentId) ? list : list.concat(s), []).sort(compareStudentsByTotalCount);
+    document.getElementById("fruitRoundResults").innerHTML = students.length ? `<table class="manager-table"><thead><tr><th>순위</th><th>이름</th><th>QT</th><th>노트</th><th>태도</th><th>차감</th><th>총합</th></tr></thead><tbody>${students.map((s, i) => `<tr><td>${i + 1}</td><td>${escapeHtml(s.studentName)}</td><td>${s.qtCount}</td><td>${s.noteCount}</td><td>${s.attitudeCount}</td><td class="deduction-value">${s.deductionCount || 0}</td><td><strong>${s.totalCount}</strong></td></tr>`).join("")}</tbody></table>` : '<div class="table-empty">이 회차의 열매 기록이 없습니다.</div>';
+  }
+
+  document.getElementById("fruitRoundYearSelect").addEventListener("change", () => loadFruitRounds().catch(e => render(e.message)));
+  document.getElementById("btnCreateFruitRound").addEventListener("click", async () => {
+    try {
+      const yearId = Number(document.getElementById("fruitRoundYearSelect").value);
+      if (!Number.isFinite(yearId)) throw new Error("연도를 선택하세요.");
+      if (!window.confirm("정말로 초기화하시겠습니까? 초기화 후에는 새 회차가 시작되며, 이전 수량은 열매 현황에서 계속 확인할 수 있습니다.")) return;
+      await api(`/api/admin/years/${yearId}/fruit-reset`, { method: "POST", body: JSON.stringify({}) });
+      await loadFruitRounds();
+      render("새 열매 회차를 시작했습니다.");
+    } catch (e) { render(e.message); }
+  });
+
+  function setFruitTab(tabName) {
+    document.querySelectorAll("[data-fruit-tab-target]").forEach(button => button.classList.toggle("active", button.dataset.fruitTabTarget === tabName));
+    document.querySelectorAll("[data-fruit-panel]").forEach(panel => panel.classList.toggle("active", panel.dataset.fruitPanel === tabName));
+    if (tabName === "festival") loadFruitFestivals().catch(e => render(e.message));
+  }
+
+  async function loadFruitFestivals() {
+    const select = document.getElementById("fruitFestivalYearSelect");
+    const selected = select.value || String(getActiveYearValue() || cachedYears[0]?.yearValue || "");
+    select.innerHTML = cachedYears.map(y => `<option value="${y.id}">${y.yearValue}년</option>`).join("");
+    const year = cachedYears.find(y => String(y.id) === String(selected)) || cachedYears.find(y => y.active) || cachedYears[0];
+    if (!year) return;
+    select.value = String(year.id);
+    const festivals = await api(`/api/admin/years/${year.id}/fruit-festivals`, { method: "GET" });
+    const root = document.getElementById("fruitFestivalList");
+    root.innerHTML = festivals.length ? `<table class="manager-table"><thead><tr><th>열매잔치 날짜</th><th></th></tr></thead><tbody>${festivals.map(item => `<tr><td>${item.festivalDate}</td><td><button class="ghost danger btnDeleteFruitFestival" data-date="${item.festivalDate}" type="button">삭제</button></td></tr>`).join("")}</tbody></table>` : '<div class="table-empty">등록된 열매잔치 일정이 없습니다.</div>';
+    root.querySelectorAll(".btnDeleteFruitFestival").forEach(button => button.addEventListener("click", async () => {
+      const date = button.dataset.date;
+      if (!window.confirm(`${date} 열매잔치 일정을 삭제할까요?`)) return;
+      try { await api(`/api/admin/years/${year.id}/fruit-festivals/${date}`, { method: "DELETE" }); await loadFruitFestivals(); render("열매잔치 일정을 삭제했습니다."); } catch (e) { render(e.message); }
+    }));
+  }
+
+  document.querySelectorAll("[data-fruit-tab-target]").forEach(button => button.addEventListener("click", () => setFruitTab(button.dataset.fruitTabTarget)));
+  document.getElementById("fruitFestivalYearSelect").addEventListener("change", () => loadFruitFestivals().catch(e => render(e.message)));
+  document.getElementById("btnOpenFruitFestivalEditor").addEventListener("click", () => document.getElementById("fruitFestivalEditor").classList.remove("hidden"));
+  document.getElementById("btnCancelFruitFestival").addEventListener("click", () => document.getElementById("fruitFestivalEditor").classList.add("hidden"));
+  document.getElementById("btnSaveFruitFestival").addEventListener("click", async () => {
+    try {
+      const yearId = Number(document.getElementById("fruitFestivalYearSelect").value);
+      const festivalDate = document.getElementById("fruitFestivalDate").value;
+      if (!Number.isFinite(yearId) || !festivalDate) throw new Error("연도와 열매잔치 날짜를 선택하세요.");
+      await api(`/api/admin/years/${yearId}/fruit-festivals`, { method: "POST", body: JSON.stringify({ festivalDate }) });
+      document.getElementById("fruitFestivalDate").value = "";
+      document.getElementById("fruitFestivalEditor").classList.add("hidden");
+      await loadFruitFestivals();
+      render("열매잔치 일정을 등록했습니다.");
+    } catch (e) {
+      const message = e && e.message ? e.message : "열매잔치 일정 등록에 실패했습니다.";
+      if (message.includes("이미 등록된 열매잔치 날짜")) window.alert("이미 등록된 열매잔치 날짜입니다.");
+      render(message);
+    }
+  });
 
   async function loadBootstrapAndDefaultYear() {
     const bootstrapParams = new URLSearchParams();
@@ -2073,7 +2169,7 @@
 
   function buildTeacherPoolQuery(limit, offset) {
     const year = getPoolYearValue();
-    if (!Number.isFinite(Number(year))) {
+    if (!Number.isFinite(Number(year)) || Number(year) <= 0) {
       throw new Error("관리할 연도를 먼저 선택해 주세요.");
     }
     const params = new URLSearchParams();
@@ -2086,7 +2182,7 @@
 
   function buildStudentPoolQuery(limit, offset) {
     const year = getPoolYearValue();
-    if (!Number.isFinite(Number(year))) {
+    if (!Number.isFinite(Number(year)) || Number(year) <= 0) {
       throw new Error("관리할 연도를 먼저 선택해 주세요.");
     }
     const params = new URLSearchParams();
@@ -2998,13 +3094,33 @@
       const studentIds = Array.from(selectedAssignmentStudentIds.values());
       ensureNonEmptyIds(studentIds, "선택된 studentIds");
       if (!confirmAction(`선택한 학생 ${studentIds.length}명을 배정할까요?`)) return;
+      const inactiveAssignedIds = new Set(cachedYearClasses
+        .filter(item => item.active === false)
+        .flatMap(item => (item.students || []).map(student => student.studentId)));
+      const inactiveSourceByStudentId = new Map(cachedYearClasses
+        .filter(item => item.active === false)
+        .flatMap(item => (item.students || []).map(student => [student.studentId, item.yearClassId])));
+      const moveIds = studentIds.filter(id => inactiveAssignedIds.has(id));
+      const assignIds = studentIds.filter(id => !inactiveAssignedIds.has(id));
       await runUndoAware(
         {
-          execute: () => postAssignStudents(yearClassId, studentIds)
+          execute: async () => {
+            if (moveIds.length) await moveStudents(yearClassId, moveIds);
+            if (assignIds.length) await postAssignStudents(yearClassId, assignIds);
+          }
         },
         {
           label: "선택 학생 배정 취소",
-          execute: () => runAndRefresh(() => deleteAssignStudents(yearClassId, studentIds))
+          execute: () => runAndRefresh(async () => {
+            if (assignIds.length) await deleteAssignStudents(yearClassId, assignIds);
+            const sourceGroups = new Map();
+            moveIds.forEach(id => {
+              const sourceId = inactiveSourceByStudentId.get(id);
+              if (!sourceGroups.has(sourceId)) sourceGroups.set(sourceId, []);
+              sourceGroups.get(sourceId).push(id);
+            });
+            for (const [sourceId, ids] of sourceGroups) await moveStudents(sourceId, ids);
+          })
         }
       );
       selectedAssignmentStudentIds.clear();

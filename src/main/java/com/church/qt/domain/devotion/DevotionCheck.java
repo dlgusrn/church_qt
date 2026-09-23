@@ -44,6 +44,9 @@ public class DevotionCheck extends BaseTimeEntity {
     @Column(name = "attitude_checked", nullable = false)
     private Boolean attitudeChecked;
 
+    @Column(name = "attitude_count", nullable = false)
+    private Integer attitudeCount;
+
     @Column(name = "note_checked", nullable = false)
     private Boolean noteChecked;
 
@@ -61,6 +64,7 @@ public class DevotionCheck extends BaseTimeEntity {
             LocalDate checkDate,
             Boolean qtChecked,
             Boolean attitudeChecked,
+            Integer attitudeCount,
             Boolean noteChecked,
             Integer noteCount,
             Teacher checkedByTeacher
@@ -69,22 +73,24 @@ public class DevotionCheck extends BaseTimeEntity {
         this.student = student;
         this.checkDate = checkDate;
         this.qtChecked = qtChecked;
-        this.attitudeChecked = attitudeChecked;
+        this.attitudeCount = normalizeAttitudeCount(attitudeCount, attitudeChecked);
+        this.attitudeChecked = this.attitudeCount > 0;
         this.noteCount = normalizeNoteCount(noteCount, noteChecked);
         this.noteChecked = this.noteCount > 0;
         this.checkedByTeacher = checkedByTeacher;
     }
 
-    public void updateChecks(boolean qtChecked, boolean attitudeChecked, int noteCount, Teacher teacher) {
+    public void updateChecks(boolean qtChecked, int attitudeCount, int noteCount, Teacher teacher) {
         this.qtChecked = qtChecked;
-        this.attitudeChecked = attitudeChecked;
+        this.attitudeCount = normalizeAttitudeCount(attitudeCount, false);
+        this.attitudeChecked = this.attitudeCount > 0;
         this.noteCount = normalizeNoteCount(noteCount, noteCount > 0);
         this.noteChecked = this.noteCount > 0;
         this.checkedByTeacher = teacher;
     }
 
     public boolean isEmptyCheck() {
-        return !qtChecked && !attitudeChecked && noteCount == 0;
+        return !qtChecked && attitudeCount == 0 && noteCount == 0;
     }
 
     private int normalizeNoteCount(Integer noteCount, Boolean noteChecked) {
@@ -92,5 +98,10 @@ public class DevotionCheck extends BaseTimeEntity {
             return Math.max(0, Math.min(3, noteCount));
         }
         return Boolean.TRUE.equals(noteChecked) ? 1 : 0;
+    }
+
+    private int normalizeAttitudeCount(Integer attitudeCount, Boolean attitudeChecked) {
+        if (attitudeCount != null) return Math.max(0, Math.min(99, attitudeCount));
+        return Boolean.TRUE.equals(attitudeChecked) ? 1 : 0;
     }
 }

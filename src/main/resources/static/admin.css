@@ -11,6 +11,35 @@
   --ghost: #ece3d7;
 }
 
+.fruit-round-list {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 12px 0 16px;
+}
+
+.fruit-primary-action { margin-top: 8px; }
+.fruit-primary-action button { width: 100%; }
+#fruitFestivalList { margin-top: 14px; }
+
+.fruit-round-card {
+  /*min-width: 170px;*/
+  text-align: left;
+  background: #f5f2ff;
+  border: 1px solid #ddd6fe;
+  color: #3d2b74;
+}
+
+.fruit-round-card.active {
+  background: #5b3cc4;
+  border-color: #5b3cc4;
+  color: #fff;
+}
+
+.fruit-round-card span { display: block; margin-top: 5px; font-size: 12px; opacity: .8; }
+
+.deduction-value { color: #c62828; font-weight: 700; }
+
 @media (min-width: 901px) {
   body {
     font-size: 16px;
@@ -419,6 +448,14 @@ h1 {
 }
 
 .pool-panel.active {
+  display: block;
+}
+
+.fruit-panel {
+  display: none;
+}
+
+.fruit-panel.active {
   display: block;
 }
 
@@ -867,6 +904,9 @@ button.ghost.danger {
 .field-block select {
   font-weight: 400;
 }
+
+.festival-date-card { margin-top: 14px; padding: 14px; border: 1px solid #dbcdbd; border-radius: 12px; background: #fffdf9; color: #6d4d37; font-weight: 800; }
+.festival-date-card input[type="date"] { width: 100%; margin-top: 4px; border: 0; border-radius: 8px; padding: 10px 2px 4px; background: transparent; color: var(--ink); font-size: 17px; font-weight: 700; }
 
 .toggle-grid {
   display: grid;
@@ -1476,7 +1516,8 @@ pre {
   #yearEditorPanel .manager-head,
   #classEditorPanel .manager-head,
   #teacherEditorPanel .manager-head,
-  #studentEditorPanel .manager-head {
+  #studentEditorPanel .manager-head,
+  .fruit-festival-editor .manager-head {
     flex-direction: row;
     align-items: flex-start;
     justify-content: space-between;
@@ -1486,7 +1527,8 @@ pre {
   #yearEditorPanel .manager-head > div:first-child,
   #classEditorPanel .manager-head > div:first-child,
   #teacherEditorPanel .manager-head > div:first-child,
-  #studentEditorPanel .manager-head > div:first-child {
+  #studentEditorPanel .manager-head > div:first-child,
+  .fruit-festival-editor .manager-head > div:first-child {
     flex: 1 1 auto;
     min-width: 0;
   }
@@ -1494,7 +1536,8 @@ pre {
   #yearEditorPanel .manager-head h3,
   #classEditorPanel .manager-head h3,
   #teacherEditorPanel .manager-head h3,
-  #studentEditorPanel .manager-head h3 {
+  #studentEditorPanel .manager-head h3,
+  .fruit-festival-editor .manager-head h3 {
     font-size: 15px;
     line-height: 1.2;
     word-break: keep-all;

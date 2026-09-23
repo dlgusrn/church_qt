@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.time.LocalDate;
 
 @RestController
 @RequiredArgsConstructor
@@ -35,6 +36,46 @@ public class AdminController {
     ) {
         Long teacherId = teacherAppService.extractTeacherId(authorizationHeader);
         return adminService.updateYear(teacherId, yearId, request);
+    }
+
+    @PostMapping("/years/{yearId}/fruit-reset")
+    public YearResponse resetFruitCounts(@RequestHeader("Authorization") String authorizationHeader, @PathVariable Long yearId, @RequestBody(required = false) FruitResetRequest request) {
+        return adminService.resetFruitCounts(teacherAppService.extractTeacherId(authorizationHeader), yearId, request);
+    }
+
+    @GetMapping("/years/{yearId}/fruit-rounds")
+    public List<FruitRoundResponse> getFruitRounds(@RequestHeader("Authorization") String authorizationHeader, @PathVariable Long yearId) {
+        return adminService.getFruitRounds(teacherAppService.extractTeacherId(authorizationHeader), yearId);
+    }
+
+    @GetMapping("/years/{yearId}/fruit-festivals")
+    public List<FruitFestivalResponse> getFruitFestivals(@RequestHeader("Authorization") String authorizationHeader, @PathVariable Long yearId) {
+        return adminService.getFruitFestivals(teacherAppService.extractTeacherId(authorizationHeader), yearId);
+    }
+
+    @PostMapping("/years/{yearId}/fruit-festivals")
+    public FruitFestivalResponse createFruitFestival(@RequestHeader("Authorization") String authorizationHeader, @PathVariable Long yearId, @RequestBody FruitFestivalRequest request) {
+        return adminService.createFruitFestival(teacherAppService.extractTeacherId(authorizationHeader), yearId, request);
+    }
+
+    @DeleteMapping("/years/{yearId}/fruit-festivals/{festivalDate}")
+    public void deleteFruitFestival(@RequestHeader("Authorization") String authorizationHeader, @PathVariable Long yearId, @PathVariable LocalDate festivalDate) {
+        adminService.deleteFruitFestival(teacherAppService.extractTeacherId(authorizationHeader), yearId, festivalDate);
+    }
+
+    @GetMapping("/years/{yearId}/fruit-adjustments")
+    public List<FruitAdjustmentResponse> getFruitAdjustments(@RequestHeader("Authorization") String authorizationHeader, @PathVariable Long yearId) {
+        return adminService.getFruitAdjustments(teacherAppService.extractTeacherId(authorizationHeader), yearId);
+    }
+
+    @DeleteMapping("/fruit-adjustments/{adjustmentId}")
+    public void cancelFruitAdjustment(@RequestHeader("Authorization") String authorizationHeader, @PathVariable Long adjustmentId) {
+        adminService.cancelFruitAdjustment(teacherAppService.extractTeacherId(authorizationHeader), adjustmentId);
+    }
+
+    @PutMapping("/years/{yearId}/fruit-festival-date")
+    public YearResponse updateFruitFestivalDate(@RequestHeader("Authorization") String authorizationHeader, @PathVariable Long yearId, @RequestParam(required = false) LocalDate date) {
+        return adminService.updateFruitFestivalDate(teacherAppService.extractTeacherId(authorizationHeader), yearId, date);
     }
 
     @PostMapping("/year-classes")
@@ -175,10 +216,12 @@ public class AdminController {
     @GetMapping("/year-classes")
     public List<AdminYearClassViewResponse> getYearClasses(
             @RequestHeader("Authorization") String authorizationHeader,
-            @RequestParam Integer year
+            @RequestParam Integer year,
+            @RequestParam(required = false) LocalDate from,
+            @RequestParam(required = false) LocalDate to
     ) {
         Long teacherId = teacherAppService.extractTeacherId(authorizationHeader);
-        return adminService.getYearClasses(teacherId, year);
+        return adminService.getYearClasses(teacherId, year, from, to);
     }
 
     @GetMapping("/year-classes/{yearClassId}")

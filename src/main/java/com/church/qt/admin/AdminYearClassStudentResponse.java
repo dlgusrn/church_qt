@@ -9,6 +9,10 @@ public record AdminYearClassStudentResponse(
         long qtCount,
         long attitudeCount,
         long noteCount,
+        long qtAdjustment,
+        long attitudeAdjustment,
+        long noteAdjustment,
+        long deductionCount,
         long totalCount
 ) {
 }

@@ -745,9 +745,14 @@ button.item-card:active {
 
 .summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin-top: 8px;
+}
+
+.summary-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .summary .box {
@@ -759,8 +764,11 @@ button.item-card:active {
 }
 
 .summary .total-box {
-  grid-column: 1 / -1;
+  width: 100%;
 }
+
+.summary .deduction-box { border-color: #f4c5c5; background: #fff5f5; }
+.summary .deduction-box .label, .summary .deduction-box .value { color: #c62828; }
 
 .summary .label {
   font-size: 12px;
@@ -1086,6 +1094,11 @@ button.day-cell {
   color: var(--attitude);
 }
 
+.badge.deduction {
+  background: #fff0f0;
+  color: #c62828;
+}
+
 .badge.total {
   background: #eaf1ff;
   color: #1e4d8e;
@@ -1183,7 +1196,7 @@ body[data-app-mode="teacher"] .note-stepper-btn {
 
 .teacher-tab-nav {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin-top: 12px;
 }
@@ -1201,6 +1214,49 @@ body[data-app-mode="teacher"] .note-stepper-btn {
   color: #ffffff;
   border-color: #0b6ed0;
   box-shadow: 0 10px 24px #0b6ed022;
+}
+
+.teacher-fruit-adjustment-list {
+  margin-top: 12px;
+}
+
+.teacher-fruit-adjustment-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #d7e3ef;
+  border-radius: 12px;
+}
+
+.teacher-fruit-adjustment-table {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.teacher-fruit-adjustment-table th,
+.teacher-fruit-adjustment-table td {
+  padding: 10px;
+  text-align: center;
+  border-bottom: 1px solid #e6edf5;
+}
+
+.teacher-fruit-adjustment-table .teacher-fruit-adjustment-reason {
+  text-align: left;
+}
+
+.teacher-fruit-adjustment-table th {
+  color: #47627d;
+  background: #f4f8fc;
+  white-space: nowrap;
+}
+
+.teacher-fruit-adjustment-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.teacher-fruit-adjustment-amount {
+  color: #c62828;
+  font-weight: 800;
 }
 
 .meeting-note-list {

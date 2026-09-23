@@ -12,6 +12,7 @@ public record TeacherStudentListResponse(
         long qtCount,
         long attitudeCount,
         long noteCount,
+        long deductionCount,
         long totalCount
 ) {
     public TeacherStudentListResponse(
@@ -62,6 +63,7 @@ public record TeacherStudentListResponse(
                 qtCount,
                 attitudeCount,
                 noteCount,
+                0,
                 qtCount + attitudeCount + noteCount
         );
     }
@@ -79,6 +81,7 @@ public record TeacherStudentListResponse(
                 qtCount,
                 attitudeCount,
                 noteCount,
+                deductionCount,
                 totalCount
         );
     }
@@ -96,7 +99,14 @@ public record TeacherStudentListResponse(
                 qtCount,
                 attitudeCount,
                 noteCount,
+                deductionCount,
                 totalCount
         );
+    }
+
+    public TeacherStudentListResponse withDeductionCount(long deductionCount) {
+        return new TeacherStudentListResponse(studentId, studentName, schoolGrade, displayName, contactNumber, myClassStudent,
+                myClassName, assignedClassName, qtCount, attitudeCount, noteCount, deductionCount,
+                qtCount + attitudeCount + noteCount + deductionCount);
     }
 }

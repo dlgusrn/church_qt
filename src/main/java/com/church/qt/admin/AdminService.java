@@ -4,6 +4,12 @@ import com.church.qt.common.AuditLogService;
 import com.church.qt.common.ChangePasswordRequest;
 import com.church.qt.common.PasswordPolicyValidator;
 import com.church.qt.domain.devotion.DevotionCheckRepository;
+import com.church.qt.domain.fruit.FruitAdjustmentRepository;
+import com.church.qt.domain.fruit.FruitType;
+import com.church.qt.domain.fruit.FruitReset;
+import com.church.qt.domain.fruit.FruitResetRepository;
+import com.church.qt.domain.fruit.FruitFestival;
+import com.church.qt.domain.fruit.FruitFestivalRepository;
 import com.church.qt.domain.student.Student;
 import com.church.qt.domain.student.StudentRepository;
 import com.church.qt.domain.teacher.Teacher;
@@ -33,6 +39,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.ArrayList;
 import java.time.OffsetDateTime;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -67,6 +74,9 @@ public class AdminService {
     private final PasswordPolicyValidator passwordPolicyValidator;
     private final PasswordEncoder passwordEncoder;
     private final DevotionCheckRepository devotionCheckRepository;
+    private final FruitAdjustmentRepository fruitAdjustmentRepository;
+    private final FruitResetRepository fruitResetRepository;
+    private final FruitFestivalRepository fruitFestivalRepository;
 
     @Transactional(readOnly = true)
     public void validateAdmin(Long teacherId) {
@@ -102,6 +112,98 @@ public class AdminService {
                 "CHANGE_PASSWORD",
                 "teacherId=" + adminTeacher.getId() + ", loginId=" + adminTeacher.getLoginId() + ", scope=admin"
         );
+    }
+
+    @Transactional
+    public YearResponse resetFruitCounts(Long teacherId, Long yearId, FruitResetRequest request) {
+        Year year = yearRepository.findById(yearId).orElseThrow(() -> new IllegalArgumentException("연도가 존재하지 않습니다."));
+        Teacher admin = getAndValidateAdminTeacher(teacherId);
+        LocalDate resetDate = request == null || request.resetDate() == null ? LocalDate.now() : request.resetDate();
+        if (resetDate.getYear() != year.getYearValue()) throw new IllegalArgumentException("초기화 날짜는 해당 연도 안에서 선택하세요.");
+        if (fruitResetRepository.existsByYearIdAndResetDate(yearId, resetDate) || resetDate.equals(year.getFruitResetDate())) throw new IllegalArgumentException("이미 해당 날짜에 초기화한 이력이 있습니다.");
+        fruitResetRepository.save(FruitReset.builder().year(year).resetDate(resetDate).resetByTeacher(admin).build());
+        year.resetFruitCounts(resetDate);
+        recordAuditLog(teacherId, "RESET_FRUIT_COUNTS", "yearValue=" + year.getYearValue() + ", resetDate=" + resetDate);
+        return YearResponse.from(year);
+    }
+
+    @Transactional(readOnly = true)
+    public List<FruitRoundResponse> getFruitRounds(Long teacherId, Long yearId) {
+        validateAdmin(teacherId);
+        Year year = yearRepository.findById(yearId).orElseThrow(() -> new IllegalArgumentException("연도가 존재하지 않습니다."));
+        List<LocalDate> resets = fruitResetRepository.findByYearIdOrderByResetDateAsc(yearId).stream().map(FruitReset::getResetDate).collect(Collectors.toCollection(ArrayList::new));
+        if (resets.isEmpty() && year.getFruitResetDate() != null) resets.add(year.getFruitResetDate());
+        LocalDate from = LocalDate.of(year.getYearValue(), 1, 1);
+        LocalDate today = LocalDate.now();
+        LocalDate yearEnd = year.getYearValue().equals(today.getYear()) ? today : LocalDate.of(year.getYearValue(), 12, 31);
+        List<FruitRoundResponse> rounds = new ArrayList<>();
+        for (LocalDate reset : resets) { rounds.add(new FruitRoundResponse(rounds.size() + 1, from, reset.minusDays(1), false)); from = reset; }
+        rounds.add(new FruitRoundResponse(rounds.size() + 1, from, yearEnd, true));
+        return rounds;
+    }
+
+    @Transactional(readOnly = true)
+    public List<FruitFestivalResponse> getFruitFestivals(Long teacherId, Long yearId) {
+        validateAdmin(teacherId);
+        Year year = yearRepository.findById(yearId).orElseThrow(() -> new IllegalArgumentException("연도가 존재하지 않습니다."));
+        List<FruitFestivalResponse> festivals = new ArrayList<>();
+        if (year.getFruitFestivalDate() != null) festivals.add(new FruitFestivalResponse(null, year.getFruitFestivalDate()));
+        fruitFestivalRepository.findByYearIdOrderByFestivalDateAsc(yearId).stream().map(FruitFestivalResponse::from).forEach(festivals::add);
+        return festivals.stream().collect(Collectors.toMap(FruitFestivalResponse::festivalDate, item -> item, (left, right) -> left, LinkedHashMap::new)).values().stream().toList();
+    }
+
+    @Transactional
+    public FruitFestivalResponse createFruitFestival(Long teacherId, Long yearId, FruitFestivalRequest request) {
+        getAndValidateAdminTeacher(teacherId);
+        Year year = yearRepository.findById(yearId).orElseThrow(() -> new IllegalArgumentException("연도가 존재하지 않습니다."));
+        if (request == null || request.festivalDate() == null) throw new IllegalArgumentException("열매잔치 날짜를 선택하세요.");
+        if (request.festivalDate().getYear() != year.getYearValue()) throw new IllegalArgumentException("열매잔치 날짜는 해당 연도 안에서 선택하세요.");
+        if (request.festivalDate().equals(year.getFruitFestivalDate()) || fruitFestivalRepository.existsByYearIdAndFestivalDate(yearId, request.festivalDate())) throw new IllegalArgumentException("이미 등록된 열매잔치 날짜입니다.");
+        FruitFestival festival = fruitFestivalRepository.save(FruitFestival.builder().year(year).festivalDate(request.festivalDate()).build());
+        recordAuditLog(teacherId, "CREATE_FRUIT_FESTIVAL", "yearValue=" + year.getYearValue() + ", festivalDate=" + request.festivalDate());
+        return FruitFestivalResponse.from(festival);
+    }
+
+    @Transactional
+    public void deleteFruitFestival(Long teacherId, Long yearId, LocalDate festivalDate) {
+        getAndValidateAdminTeacher(teacherId);
+        Year year = yearRepository.findById(yearId).orElseThrow(() -> new IllegalArgumentException("연도가 존재하지 않습니다."));
+        if (festivalDate == null) throw new IllegalArgumentException("열매잔치 날짜를 선택하세요.");
+        if (festivalDate.equals(year.getFruitFestivalDate())) {
+            year.updateFruitFestivalDate(null);
+        } else {
+            FruitFestival festival = fruitFestivalRepository.findByYearIdAndFestivalDate(yearId, festivalDate)
+                    .orElseThrow(() -> new IllegalArgumentException("열매잔치 일정이 존재하지 않습니다."));
+            fruitFestivalRepository.delete(festival);
+        }
+        recordAuditLog(teacherId, "DELETE_FRUIT_FESTIVAL", "yearValue=" + year.getYearValue() + ", festivalDate=" + festivalDate);
+    }
+
+    @Transactional(readOnly = true)
+    public List<FruitAdjustmentResponse> getFruitAdjustments(Long teacherId, Long yearId) {
+        validateAdmin(teacherId);
+        if (!yearRepository.existsById(yearId)) throw new IllegalArgumentException("연도가 존재하지 않습니다.");
+        return fruitAdjustmentRepository.findTotalAdjustmentsByYearId(yearId).stream().map(FruitAdjustmentResponse::from).toList();
+    }
+
+    @Transactional
+    public void cancelFruitAdjustment(Long teacherId, Long adjustmentId) {
+        getAndValidateAdminTeacher(teacherId);
+        com.church.qt.domain.fruit.FruitAdjustment adjustment = fruitAdjustmentRepository.findById(adjustmentId)
+                .orElseThrow(() -> new IllegalArgumentException("차감 내역이 존재하지 않습니다."));
+        if (adjustment.getFruitType() != FruitType.TOTAL) throw new IllegalArgumentException("총 열매 차감 내역만 취소할 수 있습니다.");
+        recordAuditLog(teacherId, "CANCEL_FRUIT_ADJUSTMENT", "adjustmentId=" + adjustment.getId() + ", yearValue=" + adjustment.getYear().getYearValue() + ", studentId=" + adjustment.getStudent().getId() + ", amount=" + adjustment.getAmount());
+        fruitAdjustmentRepository.delete(adjustment);
+    }
+
+    @Transactional
+    public YearResponse updateFruitFestivalDate(Long teacherId, Long yearId, LocalDate festivalDate) {
+        Year year = yearRepository.findById(yearId).orElseThrow(() -> new IllegalArgumentException("연도가 존재하지 않습니다."));
+        getAndValidateAdminTeacher(teacherId);
+        if (festivalDate != null && festivalDate.getYear() != year.getYearValue()) throw new IllegalArgumentException("열매잔치 날짜는 해당 연도 안에서 선택하세요.");
+        year.updateFruitFestivalDate(festivalDate);
+        recordAuditLog(teacherId, "UPDATE_FRUIT_FESTIVAL", "yearValue=" + year.getYearValue() + ", festivalDate=" + festivalDate);
+        return YearResponse.from(year);
     }
 
     @Transactional(readOnly = true)
@@ -641,13 +743,19 @@ public class AdminService {
 
     @Transactional(readOnly = true)
     public List<AdminYearClassViewResponse> getYearClasses(Long adminTeacherId, Integer yearValue) {
+        return getYearClasses(adminTeacherId, yearValue, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AdminYearClassViewResponse> getYearClasses(Long adminTeacherId, Integer yearValue, LocalDate from, LocalDate to) {
         validateAdmin(adminTeacherId);
+        if (from != null && to != null && to.isBefore(from)) throw new IllegalArgumentException("조회 시작일은 종료일보다 앞서야 합니다.");
 
         Year year = yearRepository.findByYearValue(yearValue)
                 .orElseThrow(() -> new IllegalArgumentException("연도가 존재하지 않습니다."));
 
         List<YearClass> yearClasses = yearClassRepository.findByYearIdOrderBySortOrderAscIdAsc(year.getId());
-        return buildYearClassViews(yearClasses);
+        return buildYearClassViews(yearClasses, from, to);
     }
 
     @Transactional(readOnly = true)
@@ -1129,6 +1237,10 @@ public class AdminService {
     }
 
     private List<AdminYearClassViewResponse> buildYearClassViews(List<YearClass> yearClasses) {
+        return buildYearClassViews(yearClasses, null, null);
+    }
+
+    private List<AdminYearClassViewResponse> buildYearClassViews(List<YearClass> yearClasses, LocalDate requestedFrom, LocalDate requestedTo) {
         if (yearClasses.isEmpty()) {
             return List.of();
         }
@@ -1184,18 +1296,13 @@ public class AdminService {
         Map<Long, List<AdminYearClassStudentResponse>> studentMapByYearClassId = new LinkedHashMap<>();
         yearClassStudents.forEach(item -> {
                     YearStudent yearStudent = yearStudentMap.get(item.getYear().getId() + ":" + item.getStudent().getId());
-                    long qtCount = devotionCheckRepository.countByYearIdAndStudentIdAndQtCheckedTrue(
-                            item.getYearClass().getYear().getId(),
-                            item.getStudent().getId()
-                    );
-                    long attitudeCount = devotionCheckRepository.countByYearIdAndStudentIdAndAttitudeCheckedTrue(
-                            item.getYearClass().getYear().getId(),
-                            item.getStudent().getId()
-                    );
-                    long noteCount = devotionCheckRepository.sumNoteCountByYearIdAndStudentId(
-                            item.getYearClass().getYear().getId(),
-                            item.getStudent().getId()
-                    );
+                    Year fruitYear = item.getYearClass().getYear();
+                    LocalDate from = requestedFrom != null ? requestedFrom : (fruitYear.getFruitResetDate() == null ? LocalDate.of(fruitYear.getYearValue(), 1, 1) : fruitYear.getFruitResetDate().plusDays(1));
+                    LocalDate to = requestedTo != null ? requestedTo : LocalDate.of(fruitYear.getYearValue(), 12, 31);
+                    long totalAdjustment = fruitAdjustmentRepository.sumAmount(fruitYear.getId(), item.getStudent().getId(), FruitType.TOTAL, from, to);
+                    long qtCount = devotionCheckRepository.countQtByYearStudentAndDateBetween(fruitYear.getId(), item.getStudent().getId(), from, to);
+                    long attitudeCount = devotionCheckRepository.countAttitudeByYearStudentAndDateBetween(fruitYear.getId(), item.getStudent().getId(), from, to);
+                    long noteCount = devotionCheckRepository.sumNoteCountByYearStudentAndDateBetween(fruitYear.getId(), item.getStudent().getId(), from, to);
 
                     studentMapByYearClassId
                             .computeIfAbsent(item.getYearClass().getId(), key -> new ArrayList<>())
@@ -1208,7 +1315,11 @@ public class AdminService {
                                     qtCount,
                                     attitudeCount,
                                     noteCount,
-                                    qtCount + attitudeCount + noteCount
+                                    0,
+                                    0,
+                                    0,
+                                    totalAdjustment,
+                                    qtCount + attitudeCount + noteCount + totalAdjustment
                             ));
                 });
 

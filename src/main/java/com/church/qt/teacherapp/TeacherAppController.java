@@ -18,6 +18,19 @@ public class TeacherAppController {
         return teacherAppService.login(request);
     }
 
+    @PostMapping("/fruit-adjustments")
+    public void createFruitAdjustment(@RequestHeader("Authorization") String authorizationHeader, @RequestBody CreateFruitAdjustmentRequest request) {
+        teacherAppService.createFruitAdjustment(teacherAppService.extractTeacherId(authorizationHeader), request);
+    }
+
+    @GetMapping("/fruit-adjustments")
+    public List<TeacherFruitAdjustmentResponse> getFruitAdjustments(
+            @RequestHeader("Authorization") String authorizationHeader,
+            @RequestParam Integer year
+    ) {
+        return teacherAppService.getFruitAdjustments(teacherAppService.extractTeacherId(authorizationHeader), year);
+    }
+
     @GetMapping("/me/students")
     public List<TeacherStudentListResponse> getMyStudents(
             @RequestHeader("Authorization") String authorizationHeader,

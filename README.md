@@ -16,10 +16,10 @@
 
 ## 주요 URL
 
-- 관리자: `http://localhost:8080/admin`
-- 학생 앱: `http://localhost:8080/app/student`
-- 교사 로그인: `http://localhost:8080/app/teacher/login`
-- 교사 학생 목록: `http://localhost:8080/app/teacher/students?year=2026`
+- 관리자: `http://localhost:8081/admin`
+- 학생 앱: `http://localhost:8081/app/student`
+- 교사 로그인: `http://localhost:8081/app/teacher/login`
+- 교사 학생 목록: `http://localhost:8081/app/teacher/students?year=2026`
 
 ## 실행
 

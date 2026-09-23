@@ -5,6 +5,8 @@ import com.church.qt.common.ChangePasswordRequest;
 import com.church.qt.common.PasswordPolicyValidator;
 import com.church.qt.domain.devotion.DevotionCheck;
 import com.church.qt.domain.devotion.DevotionCheckRepository;
+import com.church.qt.domain.fruit.FruitAdjustment;
+import com.church.qt.domain.fruit.FruitAdjustmentRepository;
 import com.church.qt.domain.meetingnote.MeetingNote;
 import com.church.qt.domain.meetingnote.MeetingNoteRepository;
 import com.church.qt.domain.student.Student;
@@ -33,6 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -44,6 +47,7 @@ import java.util.Objects;
 public class TeacherAppService {
 
     private final DevotionCheckRepository devotionCheckRepository;
+    private final FruitAdjustmentRepository fruitAdjustmentRepository;
     private final MeetingNoteRepository meetingNoteRepository;
     private final StudentRepository studentRepository;
     private final TeacherRepository teacherRepository;
@@ -102,12 +106,14 @@ public class TeacherAppService {
                 .orElse(null);
         List<TeacherStudentListResponse> students = yearStudentRepository.findTeacherStudentsForYear(teacherId, yearValue);
         Map<Long, String> assignedClassNameByStudentId = loadAssignedClassNames(year.getId(), students);
+        Map<Long, Long> deductionByStudentId = fruitAdjustmentRepository.findTotalAdjustmentsByYearId(year.getId()).stream()
+                .collect(java.util.stream.Collectors.groupingBy(item -> item.getStudent().getId(), java.util.stream.Collectors.summingLong(item -> item.getAmount())));
         return students
                 .stream()
                 .map(item -> item.withClassNames(
                         item.myClassStudent() ? myClassName : null,
                         assignedClassNameByStudentId.get(item.studentId())
-                ))
+                ).withDeductionCount(deductionByStudentId.getOrDefault(item.studentId(), 0L)))
                 .toList();
     }
 
@@ -239,6 +245,7 @@ public class TeacherAppService {
                 .orElse(null);
         boolean previousQtChecked = check != null && Boolean.TRUE.equals(check.getQtChecked());
         boolean previousAttitudeChecked = check != null && Boolean.TRUE.equals(check.getAttitudeChecked());
+        int previousAttitudeCount = check == null ? 0 : Math.max(0, check.getAttitudeCount());
         int previousNoteCount = check == null ? 0 : Math.max(0, check.getNoteCount());
 
         if (!canEditQt && request.qtChecked() != previousQtChecked) {
@@ -249,7 +256,9 @@ public class TeacherAppService {
             throw new IllegalArgumentException("이 학생의 노트를 체크할 수 없습니다.");
         }
 
-        if (!request.qtChecked() && !request.attitudeChecked() && request.noteCount() <= 0) {
+        int attitudeCount = Math.max(0, Math.min(99, request.attitudeCount()));
+        if (attitudeCount == 0 && request.attitudeChecked()) attitudeCount = 1;
+        if (!request.qtChecked() && attitudeCount == 0 && request.noteCount() <= 0) {
             if (check != null) {
                 devotionCheckRepository.delete(check);
                 auditLogService.record(
@@ -272,6 +281,7 @@ public class TeacherAppService {
                     .checkDate(request.date())
                     .qtChecked(request.qtChecked())
                     .attitudeChecked(request.attitudeChecked())
+                    .attitudeCount(attitudeCount)
                     .noteChecked(request.noteCount() > 0)
                     .noteCount(request.noteCount())
                     .checkedByTeacher(teacher)
@@ -279,7 +289,7 @@ public class TeacherAppService {
 
             devotionCheckRepository.save(check);
         } else {
-            check.updateChecks(request.qtChecked(), request.attitudeChecked(), request.noteCount(), teacher);
+            check.updateChecks(request.qtChecked(), attitudeCount, request.noteCount(), teacher);
         }
         auditLogService.record(
                 teacherId,
@@ -288,9 +298,38 @@ public class TeacherAppService {
                         + ", studentId=" + student.getId()
                         + ", studentName=" + student.getStudentName()
                         + ", date=" + request.date()
-                        + ", before=qt:" + previousQtChecked + "|attitude:" + previousAttitudeChecked + "|note:" + previousNoteCount
-                        + ", after=qt:" + request.qtChecked() + "|attitude:" + request.attitudeChecked() + "|note:" + request.noteCount()
+                        + ", before=qt:" + previousQtChecked + "|attitude:" + previousAttitudeCount + "|note:" + previousNoteCount
+                        + ", after=qt:" + request.qtChecked() + "|attitude:" + attitudeCount + "|note:" + request.noteCount()
         );
+    }
+
+    @Transactional
+    public void createFruitAdjustment(Long teacherId, CreateFruitAdjustmentRequest request) {
+        Teacher teacher = requireActiveTeacher(teacherId);
+        if (request.amount() >= 0) throw new IllegalArgumentException("차감 수량은 음수여야 합니다.");
+        if (request.amount() < -99) throw new IllegalArgumentException("한 번에 99개까지만 차감할 수 있습니다.");
+        if (request.studentId() == null || request.year() == null || request.date() == null) {
+            throw new IllegalArgumentException("학생, 연도와 날짜를 입력하세요.");
+        }
+        Year year = yearRepository.findByYearValue(request.year()).orElseThrow(() -> new IllegalArgumentException("연도가 존재하지 않습니다."));
+        Student student = studentRepository.findById(request.studentId()).orElseThrow(() -> new IllegalArgumentException("학생이 존재하지 않습니다."));
+        if (!yearClassStudentRepository.existsByYearIdAndStudentId(year.getId(), student.getId())) throw new IllegalArgumentException("해당 학생은 이 연도에 속하지 않습니다.");
+        String reason = request.reason() == null ? null : request.reason().trim();
+        if (reason != null && reason.length() > 500) throw new IllegalArgumentException("사유는 500자 이내로 입력하세요.");
+        if (request.date().getYear() != year.getYearValue()) throw new IllegalArgumentException("차감 날짜는 해당 연도 안에서 선택하세요.");
+        fruitAdjustmentRepository.save(FruitAdjustment.builder().year(year).student(student).fruitType(com.church.qt.domain.fruit.FruitType.TOTAL)
+                .amount(request.amount()).adjustmentDate(request.date()).reason(reason).adjustedByTeacher(teacher).build());
+        auditLogService.record(teacherId, "CREATE_FRUIT_ADJUSTMENT", "yearValue=" + year.getYearValue() + ", studentId=" + student.getId() + ", amount=" + request.amount() + ", date=" + request.date());
+    }
+
+    @Transactional(readOnly = true)
+    public List<TeacherFruitAdjustmentResponse> getFruitAdjustments(Long teacherId, Integer yearValue) {
+        requireActiveTeacher(teacherId);
+        Year year = yearRepository.findByYearValue(yearValue)
+                .orElseThrow(() -> new IllegalArgumentException("연도가 존재하지 않습니다."));
+        return fruitAdjustmentRepository.findTotalAdjustmentsByYearId(year.getId()).stream()
+                .map(TeacherFruitAdjustmentResponse::from)
+                .toList();
     }
 
     public Long extractTeacherId(String authorizationHeader) {

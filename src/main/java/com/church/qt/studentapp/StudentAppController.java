@@ -30,6 +30,6 @@ public class StudentAppController {
             @RequestParam Integer year,
             @RequestParam Integer month
     ) {
-        return studentAppService.getStudentCalendar(studentId, year, month);
+        return studentAppService.getStudentCalendar(studentId, year, month, null, null);
     }
 }

@@ -2,6 +2,9 @@ package com.church.qt.studentapp;
 
 import com.church.qt.domain.devotion.DevotionCheck;
 import com.church.qt.domain.devotion.DevotionCheckRepository;
+import com.church.qt.domain.fruit.FruitAdjustmentRepository;
+import com.church.qt.domain.fruit.FruitType;
+import com.church.qt.domain.fruit.FruitFestivalRepository;
 import com.church.qt.domain.student.Student;
 import com.church.qt.domain.student.StudentRepository;
 import com.church.qt.domain.year.Year;
@@ -32,6 +35,8 @@ public class StudentAppService {
     private final YearClassStudentRepository yearClassStudentRepository;
     private final YearStudentRepository yearStudentRepository;
     private final DevotionCheckRepository devotionCheckRepository;
+    private final FruitAdjustmentRepository fruitAdjustmentRepository;
+    private final FruitFestivalRepository fruitFestivalRepository;
 
     @Transactional(readOnly = true)
     public List<StudentListResponse> getStudents() {
@@ -50,7 +55,7 @@ public class StudentAppService {
     }
 
     @Transactional(readOnly = true)
-    public StudentCalendarResponse getStudentCalendar(Long studentId, Integer yearValue, Integer month) {
+    public StudentCalendarResponse getStudentCalendar(Long studentId, Integer yearValue, Integer month, LocalDate summaryFrom, LocalDate summaryTo) {
         Year year = yearRepository.findByYearValue(yearValue)
                 .orElse(null);
         Long yearId = year == null ? null : year.getId();
@@ -81,12 +86,17 @@ public class StudentAppService {
         List<StudentCalendarBirthdayResponse> birthdays = buildBirthdayList(yearId, yearMonth);
         Map<String, List<StudentCalendarBirthdayResponse>> birthdayMap = birthdays.stream()
                 .collect(Collectors.groupingBy(StudentCalendarBirthdayResponse::date));
+        java.util.Set<LocalDate> festivalDates = year == null ? java.util.Set.of() : fruitFestivalRepository.findByYearIdOrderByFestivalDateAsc(yearId).stream()
+                .map(item -> item.getFestivalDate())
+                .collect(Collectors.toSet());
+        if (year != null && year.getFruitFestivalDate() != null) festivalDates.add(year.getFruitFestivalDate());
 
         List<StudentCalendarDayResponse> days = startDate.datesUntil(endDate.plusDays(1))
                 .map(date -> {
                     DevotionCheck check = checkMap.get(date);
                     boolean qtChecked = check != null && Boolean.TRUE.equals(check.getQtChecked());
                     boolean attitudeChecked = check != null && Boolean.TRUE.equals(check.getAttitudeChecked());
+                    int attitudeCount = check == null ? 0 : Math.max(0, check.getAttitudeCount());
                     int noteCount = check == null ? 0 : Math.max(0, check.getNoteCount());
                     boolean isBirthday = birthdayMap.containsKey(date.toString());
 
@@ -94,16 +104,22 @@ public class StudentAppService {
                             date.toString(),
                             qtChecked,
                             attitudeChecked,
+                            attitudeCount,
                             noteCount,
                             date.equals(today),
-                            isBirthday
+                            isBirthday,
+                            festivalDates.contains(date)
                     );
                 })
                 .toList();
 
-        long qtCount = yearId == null ? 0L : devotionCheckRepository.countByYearIdAndStudentIdAndQtCheckedTrue(yearId, studentId);
-        long attitudeCount = yearId == null ? 0L : devotionCheckRepository.countByYearIdAndStudentIdAndAttitudeCheckedTrue(yearId, studentId);
-        long noteCount = yearId == null ? 0L : devotionCheckRepository.sumNoteCountByYearIdAndStudentId(yearId, studentId);
+        LocalDate effectiveFrom = summaryFrom != null ? summaryFrom : (year != null && year.getFruitResetDate() != null ? year.getFruitResetDate().plusDays(1) : LocalDate.of(yearValue, 1, 1));
+        LocalDate effectiveTo = summaryTo != null ? summaryTo : LocalDate.of(yearValue, 12, 31);
+        if (effectiveTo.isBefore(effectiveFrom)) throw new IllegalArgumentException("조회 시작일은 종료일보다 앞서야 합니다.");
+        long qtCount = yearId == null ? 0L : devotionCheckRepository.countQtByYearStudentAndDateBetween(yearId, studentId, effectiveFrom, effectiveTo);
+        long attitudeCount = yearId == null ? 0L : devotionCheckRepository.countAttitudeByYearStudentAndDateBetween(yearId, studentId, effectiveFrom, effectiveTo);
+        long noteCount = yearId == null ? 0L : devotionCheckRepository.sumNoteCountByYearStudentAndDateBetween(yearId, studentId, effectiveFrom, effectiveTo);
+        long totalAdjustment = yearId == null ? 0L : fruitAdjustmentRepository.sumAmount(yearId, studentId, FruitType.TOTAL, effectiveFrom, effectiveTo);
 
         return new StudentCalendarResponse(
                 student.getId(),
@@ -112,11 +128,14 @@ public class StudentAppService {
                 yearValue,
                 month,
                 editable,
+                effectiveFrom.toString(),
+                effectiveTo.toString(),
                 new StudentCalendarSummaryResponse(
                         qtCount,
                         attitudeCount,
                         noteCount,
-                        qtCount + attitudeCount + noteCount
+                        totalAdjustment,
+                        qtCount + attitudeCount + noteCount + totalAdjustment
                 ),
                 days,
                 birthdays
