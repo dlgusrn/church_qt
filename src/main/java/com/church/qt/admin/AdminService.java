@@ -115,31 +115,64 @@ public class AdminService {
     }
 
     @Transactional
-    public YearResponse resetFruitCounts(Long teacherId, Long yearId, FruitResetRequest request) {
-        Year year = yearRepository.findById(yearId).orElseThrow(() -> new IllegalArgumentException("연도가 존재하지 않습니다."));
+    public void resetFruitCounts(Long teacherId, FruitResetRequest request) {
         Teacher admin = getAndValidateAdminTeacher(teacherId);
         LocalDate resetDate = request == null || request.resetDate() == null ? LocalDate.now() : request.resetDate();
-        if (resetDate.getYear() != year.getYearValue()) throw new IllegalArgumentException("초기화 날짜는 해당 연도 안에서 선택하세요.");
-        if (fruitResetRepository.existsByYearIdAndResetDate(yearId, resetDate) || resetDate.equals(year.getFruitResetDate())) throw new IllegalArgumentException("이미 해당 날짜에 초기화한 이력이 있습니다.");
+        Year year = yearRepository.findByYearValue(resetDate.getYear())
+                .orElseThrow(() -> new IllegalArgumentException("초기화 날짜의 운영 연도를 먼저 등록하세요."));
+        if (fruitResetRepository.existsByResetDate(resetDate)) throw new IllegalArgumentException("이미 해당 날짜에 초기화한 이력이 있습니다.");
         fruitResetRepository.save(FruitReset.builder().year(year).resetDate(resetDate).resetByTeacher(admin).build());
         year.resetFruitCounts(resetDate);
-        recordAuditLog(teacherId, "RESET_FRUIT_COUNTS", "yearValue=" + year.getYearValue() + ", resetDate=" + resetDate);
-        return YearResponse.from(year);
+        recordAuditLog(teacherId, "RESET_FRUIT_COUNTS", "resetDate=" + resetDate);
     }
 
     @Transactional(readOnly = true)
-    public List<FruitRoundResponse> getFruitRounds(Long teacherId, Long yearId) {
+    public List<FruitRoundResponse> getFruitRounds(Long teacherId) {
         validateAdmin(teacherId);
-        Year year = yearRepository.findById(yearId).orElseThrow(() -> new IllegalArgumentException("연도가 존재하지 않습니다."));
-        List<LocalDate> resets = fruitResetRepository.findByYearIdOrderByResetDateAsc(yearId).stream().map(FruitReset::getResetDate).collect(Collectors.toCollection(ArrayList::new));
-        if (resets.isEmpty() && year.getFruitResetDate() != null) resets.add(year.getFruitResetDate());
-        LocalDate from = LocalDate.of(year.getYearValue(), 1, 1);
+        List<Year> years = yearRepository.findAllByOrderByYearValueDescIdDesc();
+        if (years.isEmpty()) return List.of();
+        List<LocalDate> resets = new ArrayList<>(fruitResetRepository.findAllByOrderByResetDateAsc().stream()
+                .map(FruitReset::getResetDate)
+                .toList());
+        years.stream()
+                .map(Year::getFruitResetDate)
+                .filter(java.util.Objects::nonNull)
+                .forEach(resets::add);
+        resets = resets.stream().distinct().sorted().toList();
+        LocalDate from = LocalDate.of(years.stream().mapToInt(Year::getYearValue).min().orElseThrow(), 1, 1);
         LocalDate today = LocalDate.now();
-        LocalDate yearEnd = year.getYearValue().equals(today.getYear()) ? today : LocalDate.of(year.getYearValue(), 12, 31);
         List<FruitRoundResponse> rounds = new ArrayList<>();
         for (LocalDate reset : resets) { rounds.add(new FruitRoundResponse(rounds.size() + 1, from, reset.minusDays(1), false)); from = reset; }
-        rounds.add(new FruitRoundResponse(rounds.size() + 1, from, yearEnd, true));
+        rounds.add(new FruitRoundResponse(rounds.size() + 1, from, today, true));
         return rounds;
+    }
+
+    @Transactional(readOnly = true)
+    public List<FruitRoundStudentResponse> getFruitRoundResults(Long teacherId, LocalDate from, LocalDate to) {
+        validateAdmin(teacherId);
+        if (from == null || to == null || to.isBefore(from)) throw new IllegalArgumentException("회차 기간을 확인하세요.");
+        Map<Long, FruitRoundStudentTotals> totalsByStudentId = new LinkedHashMap<>();
+        for (Year year : yearRepository.findAllByOrderByYearValueDescIdDesc()) {
+            LocalDate yearStart = LocalDate.of(year.getYearValue(), 1, 1);
+            LocalDate yearEnd = LocalDate.of(year.getYearValue(), 12, 31);
+            LocalDate periodFrom = from.isAfter(yearStart) ? from : yearStart;
+            LocalDate periodTo = to.isBefore(yearEnd) ? to : yearEnd;
+            if (periodTo.isBefore(periodFrom)) continue;
+            for (YearClassStudent membership : yearClassStudentRepository.findByYearId(year.getId())) {
+                Long studentId = membership.getStudent().getId();
+                long qtCount = devotionCheckRepository.countQtByYearStudentAndDateBetween(year.getId(), studentId, periodFrom, periodTo);
+                long attitudeCount = devotionCheckRepository.countAttitudeByYearStudentAndDateBetween(year.getId(), studentId, periodFrom, periodTo)
+                        + fruitAdjustmentRepository.sumAmount(year.getId(), studentId, FruitType.ATTITUDE, periodFrom, periodTo);
+                long noteCount = devotionCheckRepository.sumNoteCountByYearStudentAndDateBetween(year.getId(), studentId, periodFrom, periodTo);
+                long deductionCount = fruitAdjustmentRepository.sumAmount(year.getId(), studentId, FruitType.TOTAL, periodFrom, periodTo);
+                totalsByStudentId.computeIfAbsent(studentId, ignored -> new FruitRoundStudentTotals(studentId, membership.getStudent().getStudentName()))
+                        .add(qtCount, noteCount, attitudeCount, deductionCount);
+            }
+        }
+        return totalsByStudentId.values().stream()
+                .map(FruitRoundStudentTotals::toResponse)
+                .sorted(java.util.Comparator.comparingLong(FruitRoundStudentResponse::totalCount).reversed().thenComparing(FruitRoundStudentResponse::studentName))
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -180,20 +213,44 @@ public class AdminService {
     }
 
     @Transactional(readOnly = true)
-    public List<FruitAdjustmentResponse> getFruitAdjustments(Long teacherId, Long yearId) {
+    public List<FruitAdjustmentResponse> getFruitAdjustments(Long teacherId) {
         validateAdmin(teacherId);
-        if (!yearRepository.existsById(yearId)) throw new IllegalArgumentException("연도가 존재하지 않습니다.");
-        return fruitAdjustmentRepository.findTotalAdjustmentsByYearId(yearId).stream().map(FruitAdjustmentResponse::from).toList();
+        return fruitAdjustmentRepository.findAllAdjustments().stream().map(FruitAdjustmentResponse::from).toList();
     }
 
     @Transactional
     public void cancelFruitAdjustment(Long teacherId, Long adjustmentId) {
         getAndValidateAdminTeacher(teacherId);
         com.church.qt.domain.fruit.FruitAdjustment adjustment = fruitAdjustmentRepository.findById(adjustmentId)
-                .orElseThrow(() -> new IllegalArgumentException("차감 내역이 존재하지 않습니다."));
-        if (adjustment.getFruitType() != FruitType.TOTAL) throw new IllegalArgumentException("총 열매 차감 내역만 취소할 수 있습니다.");
-        recordAuditLog(teacherId, "CANCEL_FRUIT_ADJUSTMENT", "adjustmentId=" + adjustment.getId() + ", yearValue=" + adjustment.getYear().getYearValue() + ", studentId=" + adjustment.getStudent().getId() + ", amount=" + adjustment.getAmount());
+                .orElseThrow(() -> new IllegalArgumentException("열매 추가·차감 내역이 존재하지 않습니다."));
+        recordAuditLog(teacherId, "CANCEL_FRUIT_ADJUSTMENT", "adjustmentId=" + adjustment.getId() + ", yearValue=" + adjustment.getYear().getYearValue() + ", studentId=" + adjustment.getStudent().getId() + ", type=" + adjustment.getFruitType() + ", amount=" + adjustment.getAmount());
         fruitAdjustmentRepository.delete(adjustment);
+    }
+
+    private static class FruitRoundStudentTotals {
+        private final Long studentId;
+        private final String studentName;
+        private long qtCount;
+        private long noteCount;
+        private long attitudeCount;
+        private long deductionCount;
+
+        private FruitRoundStudentTotals(Long studentId, String studentName) {
+            this.studentId = studentId;
+            this.studentName = studentName;
+        }
+
+        private void add(long qt, long note, long attitude, long deduction) {
+            qtCount += qt;
+            noteCount += note;
+            attitudeCount += attitude;
+            deductionCount += deduction;
+        }
+
+        private FruitRoundStudentResponse toResponse() {
+            return new FruitRoundStudentResponse(studentId, studentName, qtCount, noteCount, attitudeCount, deductionCount,
+                    qtCount + noteCount + attitudeCount + deductionCount);
+        }
     }
 
     @Transactional
@@ -1300,6 +1357,7 @@ public class AdminService {
                     LocalDate from = requestedFrom != null ? requestedFrom : (fruitYear.getFruitResetDate() == null ? LocalDate.of(fruitYear.getYearValue(), 1, 1) : fruitYear.getFruitResetDate().plusDays(1));
                     LocalDate to = requestedTo != null ? requestedTo : LocalDate.of(fruitYear.getYearValue(), 12, 31);
                     long totalAdjustment = fruitAdjustmentRepository.sumAmount(fruitYear.getId(), item.getStudent().getId(), FruitType.TOTAL, from, to);
+                    long attitudeAdjustment = fruitAdjustmentRepository.sumAmount(fruitYear.getId(), item.getStudent().getId(), FruitType.ATTITUDE, from, to);
                     long qtCount = devotionCheckRepository.countQtByYearStudentAndDateBetween(fruitYear.getId(), item.getStudent().getId(), from, to);
                     long attitudeCount = devotionCheckRepository.countAttitudeByYearStudentAndDateBetween(fruitYear.getId(), item.getStudent().getId(), from, to);
                     long noteCount = devotionCheckRepository.sumNoteCountByYearStudentAndDateBetween(fruitYear.getId(), item.getStudent().getId(), from, to);
@@ -1313,13 +1371,13 @@ public class AdminService {
                                     item.getStudent().getContactNumber(),
                                     yearStudent != null ? Boolean.TRUE.equals(yearStudent.getActive()) : item.getStudent().getActive(),
                                     qtCount,
-                                    attitudeCount,
+                                    attitudeCount + attitudeAdjustment,
                                     noteCount,
                                     0,
                                     0,
                                     0,
                                     totalAdjustment,
-                                    qtCount + attitudeCount + noteCount + totalAdjustment
+                                    qtCount + attitudeCount + attitudeAdjustment + noteCount + totalAdjustment
                             ));
                 });
 

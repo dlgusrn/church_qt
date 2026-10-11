@@ -1945,44 +1945,33 @@
   }
 
   async function loadFruitRounds() {
-    const select = document.getElementById("fruitRoundYearSelect");
-    if (!select) return;
-    const selected = select.value || String(getActiveYearValue() || cachedYears[0]?.yearValue || "");
-    select.innerHTML = cachedYears.map(y => `<option value="${y.id}">${y.yearValue}년</option>`).join("");
-    const year = cachedYears.find(y => String(y.id) === String(selected)) || cachedYears.find(y => y.active) || cachedYears[0];
-    if (!year) return;
-    select.value = String(year.id);
-    const rounds = await api(`/api/admin/years/${year.id}/fruit-rounds`, { method: "GET" });
+    const rounds = await api("/api/admin/fruit-rounds", { method: "GET" });
     const root = document.getElementById("fruitRoundList");
     root.innerHTML = rounds.map(round => `<button class="fruit-round-card${round.current ? " active" : ""}" data-from="${round.from}" data-to="${round.to}"><strong>${round.roundNumber}회차${round.current ? " (진행 중)" : ""}</strong><span>${round.from} ~ ${round.current ? "현재" : round.to}</span></button>`).join("");
-    root.querySelectorAll("button").forEach(button => button.addEventListener("click", () => loadFruitRoundResults(year.yearValue, button.dataset.from, button.dataset.to)));
-    if (rounds.length) await loadFruitRoundResults(year.yearValue, rounds[rounds.length - 1].from, rounds[rounds.length - 1].to);
-    await loadFruitAdjustments(year.id);
+    root.querySelectorAll("button").forEach(button => button.addEventListener("click", () => loadFruitRoundResults(button.dataset.from, button.dataset.to)));
+    if (rounds.length) await loadFruitRoundResults(rounds[rounds.length - 1].from, rounds[rounds.length - 1].to);
+    await loadFruitAdjustments();
   }
 
-  async function loadFruitAdjustments(yearId) {
-    const items = await api(`/api/admin/years/${yearId}/fruit-adjustments`, { method: "GET" });
+  async function loadFruitAdjustments() {
+    const items = await api("/api/admin/fruit-adjustments", { method: "GET" });
     const root = document.getElementById("fruitAdjustmentList");
-    root.innerHTML = items.length ? `<table class="manager-table"><thead><tr><th>날짜</th><th>학생</th><th>차감</th><th>사유</th><th>처리 교사</th><th></th></tr></thead><tbody>${items.map(item => `<tr><td>${item.date}</td><td>${escapeHtml(item.studentName)}</td><td>${item.amount}</td><td>${escapeHtml(item.reason || "-")}</td><td>${escapeHtml(item.adjustedBy)}</td><td><button class="ghost danger btnCancelFruitAdjustment" data-id="${item.id}" type="button">차감 취소</button></td></tr>`).join("")}</tbody></table>` : '<div class="table-empty">차감 내역이 없습니다.</div>';
+    root.innerHTML = items.length ? `<table class="manager-table"><thead><tr><th>날짜</th><th>학생</th><th>구분</th><th>수량</th><th>사유</th><th>처리 교사</th><th></th></tr></thead><tbody>${items.map(item => `<tr><td>${item.date}</td><td>${escapeHtml(item.studentName)}</td><td>${item.type === "ATTITUDE" ? "태도 추가" : "열매 차감"}</td><td>${Number(item.amount) > 0 ? "+" : ""}${item.amount}</td><td>${escapeHtml(item.reason || "-")}</td><td>${escapeHtml(item.adjustedBy)}</td><td><button class="ghost danger btnCancelFruitAdjustment" data-id="${item.id}" type="button">삭제</button></td></tr>`).join("")}</tbody></table>` : '<div class="table-empty">열매 추가·차감 내역이 없습니다.</div>';
     root.querySelectorAll(".btnCancelFruitAdjustment").forEach(button => button.addEventListener("click", async () => {
-      if (!window.confirm("이 차감을 취소하고 총 열매에 다시 반영할까요?")) return;
-      try { await api(`/api/admin/fruit-adjustments/${button.dataset.id}`, { method: "DELETE" }); await loadFruitRounds(); render("차감을 취소했습니다."); } catch (e) { render(e.message); }
+      if (!window.confirm("이 열매 추가·차감 기록을 삭제할까요?")) return;
+      try { await api(`/api/admin/fruit-adjustments/${button.dataset.id}`, { method: "DELETE" }); await loadFruitRounds(); render("열매 기록을 삭제했습니다."); } catch (e) { render(e.message); }
     }));
   }
 
-  async function loadFruitRoundResults(year, from, to) {
-    const rows = await api(`/api/admin/year-classes?year=${year}&from=${from}&to=${to}`, { method: "GET" });
-    const students = rows.flatMap(row => row.students || []).filter(s => s.active !== false).reduce((list, s) => list.some(x => x.studentId === s.studentId) ? list : list.concat(s), []).sort(compareStudentsByTotalCount);
+  async function loadFruitRoundResults(from, to) {
+    const students = await api(`/api/admin/fruit-round-results?from=${from}&to=${to}`, { method: "GET" });
     document.getElementById("fruitRoundResults").innerHTML = students.length ? `<table class="manager-table"><thead><tr><th>순위</th><th>이름</th><th>QT</th><th>노트</th><th>태도</th><th>차감</th><th>총합</th></tr></thead><tbody>${students.map((s, i) => `<tr><td>${i + 1}</td><td>${escapeHtml(s.studentName)}</td><td>${s.qtCount}</td><td>${s.noteCount}</td><td>${s.attitudeCount}</td><td class="deduction-value">${s.deductionCount || 0}</td><td><strong>${s.totalCount}</strong></td></tr>`).join("")}</tbody></table>` : '<div class="table-empty">이 회차의 열매 기록이 없습니다.</div>';
   }
 
-  document.getElementById("fruitRoundYearSelect").addEventListener("change", () => loadFruitRounds().catch(e => render(e.message)));
   document.getElementById("btnCreateFruitRound").addEventListener("click", async () => {
     try {
-      const yearId = Number(document.getElementById("fruitRoundYearSelect").value);
-      if (!Number.isFinite(yearId)) throw new Error("연도를 선택하세요.");
       if (!window.confirm("정말로 초기화하시겠습니까? 초기화 후에는 새 회차가 시작되며, 이전 수량은 열매 현황에서 계속 확인할 수 있습니다.")) return;
-      await api(`/api/admin/years/${yearId}/fruit-reset`, { method: "POST", body: JSON.stringify({}) });
+      await api("/api/admin/fruit-reset", { method: "POST", body: JSON.stringify({}) });
       await loadFruitRounds();
       render("새 열매 회차를 시작했습니다.");
     } catch (e) { render(e.message); }

@@ -38,14 +38,23 @@ public class AdminController {
         return adminService.updateYear(teacherId, yearId, request);
     }
 
-    @PostMapping("/years/{yearId}/fruit-reset")
-    public YearResponse resetFruitCounts(@RequestHeader("Authorization") String authorizationHeader, @PathVariable Long yearId, @RequestBody(required = false) FruitResetRequest request) {
-        return adminService.resetFruitCounts(teacherAppService.extractTeacherId(authorizationHeader), yearId, request);
+    @PostMapping("/fruit-reset")
+    public void resetFruitCounts(@RequestHeader("Authorization") String authorizationHeader, @RequestBody(required = false) FruitResetRequest request) {
+        adminService.resetFruitCounts(teacherAppService.extractTeacherId(authorizationHeader), request);
     }
 
-    @GetMapping("/years/{yearId}/fruit-rounds")
-    public List<FruitRoundResponse> getFruitRounds(@RequestHeader("Authorization") String authorizationHeader, @PathVariable Long yearId) {
-        return adminService.getFruitRounds(teacherAppService.extractTeacherId(authorizationHeader), yearId);
+    @GetMapping("/fruit-rounds")
+    public List<FruitRoundResponse> getFruitRounds(@RequestHeader("Authorization") String authorizationHeader) {
+        return adminService.getFruitRounds(teacherAppService.extractTeacherId(authorizationHeader));
+    }
+
+    @GetMapping("/fruit-round-results")
+    public List<FruitRoundStudentResponse> getFruitRoundResults(
+            @RequestHeader("Authorization") String authorizationHeader,
+            @RequestParam LocalDate from,
+            @RequestParam LocalDate to
+    ) {
+        return adminService.getFruitRoundResults(teacherAppService.extractTeacherId(authorizationHeader), from, to);
     }
 
     @GetMapping("/years/{yearId}/fruit-festivals")
@@ -63,9 +72,9 @@ public class AdminController {
         adminService.deleteFruitFestival(teacherAppService.extractTeacherId(authorizationHeader), yearId, festivalDate);
     }
 
-    @GetMapping("/years/{yearId}/fruit-adjustments")
-    public List<FruitAdjustmentResponse> getFruitAdjustments(@RequestHeader("Authorization") String authorizationHeader, @PathVariable Long yearId) {
-        return adminService.getFruitAdjustments(teacherAppService.extractTeacherId(authorizationHeader), yearId);
+    @GetMapping("/fruit-adjustments")
+    public List<FruitAdjustmentResponse> getFruitAdjustments(@RequestHeader("Authorization") String authorizationHeader) {
+        return adminService.getFruitAdjustments(teacherAppService.extractTeacherId(authorizationHeader));
     }
 
     @DeleteMapping("/fruit-adjustments/{adjustmentId}")

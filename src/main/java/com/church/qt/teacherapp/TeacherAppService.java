@@ -7,6 +7,7 @@ import com.church.qt.domain.devotion.DevotionCheck;
 import com.church.qt.domain.devotion.DevotionCheckRepository;
 import com.church.qt.domain.fruit.FruitAdjustment;
 import com.church.qt.domain.fruit.FruitAdjustmentRepository;
+import com.church.qt.domain.fruit.FruitType;
 import com.church.qt.domain.meetingnote.MeetingNote;
 import com.church.qt.domain.meetingnote.MeetingNoteRepository;
 import com.church.qt.domain.student.Student;
@@ -108,12 +109,18 @@ public class TeacherAppService {
         Map<Long, String> assignedClassNameByStudentId = loadAssignedClassNames(year.getId(), students);
         Map<Long, Long> deductionByStudentId = fruitAdjustmentRepository.findTotalAdjustmentsByYearId(year.getId()).stream()
                 .collect(java.util.stream.Collectors.groupingBy(item -> item.getStudent().getId(), java.util.stream.Collectors.summingLong(item -> item.getAmount())));
+        Map<Long, Long> attitudeAdditionByStudentId = fruitAdjustmentRepository.findAdjustmentsByYearId(year.getId()).stream()
+                .filter(item -> item.getFruitType() == FruitType.ATTITUDE)
+                .collect(java.util.stream.Collectors.groupingBy(item -> item.getStudent().getId(), java.util.stream.Collectors.summingLong(item -> item.getAmount())));
         return students
                 .stream()
                 .map(item -> item.withClassNames(
                         item.myClassStudent() ? myClassName : null,
                         assignedClassNameByStudentId.get(item.studentId())
-                ).withDeductionCount(deductionByStudentId.getOrDefault(item.studentId(), 0L)))
+                ).withFruitAdjustments(
+                        attitudeAdditionByStudentId.getOrDefault(item.studentId(), 0L),
+                        deductionByStudentId.getOrDefault(item.studentId(), 0L)
+                ))
                 .toList();
     }
 
@@ -306,8 +313,8 @@ public class TeacherAppService {
     @Transactional
     public void createFruitAdjustment(Long teacherId, CreateFruitAdjustmentRequest request) {
         Teacher teacher = requireActiveTeacher(teacherId);
-        if (request.amount() >= 0) throw new IllegalArgumentException("차감 수량은 음수여야 합니다.");
-        if (request.amount() < -99) throw new IllegalArgumentException("한 번에 99개까지만 차감할 수 있습니다.");
+        if (request.amount() == 0) throw new IllegalArgumentException("수량은 0일 수 없습니다.");
+        if (Math.abs(request.amount()) > 99) throw new IllegalArgumentException("한 번에 99개까지만 추가하거나 차감할 수 있습니다.");
         if (request.studentId() == null || request.year() == null || request.date() == null) {
             throw new IllegalArgumentException("학생, 연도와 날짜를 입력하세요.");
         }
@@ -316,10 +323,11 @@ public class TeacherAppService {
         if (!yearClassStudentRepository.existsByYearIdAndStudentId(year.getId(), student.getId())) throw new IllegalArgumentException("해당 학생은 이 연도에 속하지 않습니다.");
         String reason = request.reason() == null ? null : request.reason().trim();
         if (reason != null && reason.length() > 500) throw new IllegalArgumentException("사유는 500자 이내로 입력하세요.");
-        if (request.date().getYear() != year.getYearValue()) throw new IllegalArgumentException("차감 날짜는 해당 연도 안에서 선택하세요.");
-        fruitAdjustmentRepository.save(FruitAdjustment.builder().year(year).student(student).fruitType(com.church.qt.domain.fruit.FruitType.TOTAL)
+        if (request.date().getYear() != year.getYearValue()) throw new IllegalArgumentException("처리 날짜는 해당 연도 안에서 선택하세요.");
+        FruitType fruitType = request.amount() > 0 ? FruitType.ATTITUDE : FruitType.TOTAL;
+        fruitAdjustmentRepository.save(FruitAdjustment.builder().year(year).student(student).fruitType(fruitType)
                 .amount(request.amount()).adjustmentDate(request.date()).reason(reason).adjustedByTeacher(teacher).build());
-        auditLogService.record(teacherId, "CREATE_FRUIT_ADJUSTMENT", "yearValue=" + year.getYearValue() + ", studentId=" + student.getId() + ", amount=" + request.amount() + ", date=" + request.date());
+        auditLogService.record(teacherId, "CREATE_FRUIT_ADJUSTMENT", "yearValue=" + year.getYearValue() + ", studentId=" + student.getId() + ", type=" + fruitType + ", amount=" + request.amount() + ", date=" + request.date());
     }
 
     @Transactional(readOnly = true)
@@ -327,7 +335,7 @@ public class TeacherAppService {
         requireActiveTeacher(teacherId);
         Year year = yearRepository.findByYearValue(yearValue)
                 .orElseThrow(() -> new IllegalArgumentException("연도가 존재하지 않습니다."));
-        return fruitAdjustmentRepository.findTotalAdjustmentsByYearId(year.getId()).stream()
+        return fruitAdjustmentRepository.findAdjustmentsByYearId(year.getId()).stream()
                 .map(TeacherFruitAdjustmentResponse::from)
                 .toList();
     }

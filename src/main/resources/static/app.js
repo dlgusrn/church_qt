@@ -675,7 +675,7 @@
     return `
       <nav class="teacher-tab-nav" aria-label="교사 메인 메뉴">
         <button class="teacher-tab-btn ${activeTab === "students" ? "active" : ""}" type="button" data-target="/app/teacher/students?year=${year}">학생명단</button>
-        <button class="teacher-tab-btn ${activeTab === "fruit-adjustments" ? "active" : ""}" type="button" data-target="/app/teacher/fruit-adjustments?year=${year}">열매 차감</button>
+        <button class="teacher-tab-btn ${activeTab === "fruit-adjustments" ? "active" : ""}" type="button" data-target="/app/teacher/fruit-adjustments?year=${year}">열매 히스토리</button>
         <button class="teacher-tab-btn ${activeTab === "meeting-notes" ? "active" : ""}" type="button" data-target="/app/teacher/meeting-notes?year=${year}">회의록</button>
       </nav>
     `;
@@ -1174,24 +1174,25 @@
             <h2 class="simple-title">${escapeHtml(teacherName)} 선생님, 안녕하세요.</h2>
             ${buildTeacherMenuMarkup()}
           </div>
-          <p class="simple-copy">${year}년 열매 차감 내역입니다.</p>
+          <p class="simple-copy">${year}년 열매 추가·차감 이력입니다.</p>
         </div>
         ${buildTeacherTabMarkup("fruit-adjustments", year)}
         <div class="teacher-fruit-adjustment-list">
           ${Array.isArray(adjustments) && adjustments.length ? `
             <div class="teacher-fruit-adjustment-table-wrap">
               <table class="teacher-fruit-adjustment-table">
-                <thead><tr><th>날짜</th><th>학생</th><th>차감</th><th class="teacher-fruit-adjustment-reason">사유</th><th>처리 교사</th></tr></thead>
+                <thead><tr><th>날짜</th><th>학생</th><th>구분</th><th>수량</th><th class="teacher-fruit-adjustment-reason">사유</th><th>처리 교사</th></tr></thead>
                 <tbody>${adjustments.map(item => `<tr>
                   <td>${escapeHtml(item.date || "-")}</td>
                   <td>${escapeHtml(item.studentName || "-")}</td>
-                  <td class="teacher-fruit-adjustment-amount">${escapeHtml(String(item.amount ?? "-"))}</td>
+                  <td>${item.type === "ATTITUDE" ? "태도 추가" : "열매 차감"}</td>
+                  <td class="teacher-fruit-adjustment-amount ${Number(item.amount) > 0 ? "addition" : "deduction"}">${Number(item.amount) > 0 ? "+" : ""}${escapeHtml(String(item.amount ?? "-"))}</td>
                   <td class="teacher-fruit-adjustment-reason">${escapeHtml(item.reason || "-")}</td>
                   <td>${escapeHtml(item.adjustedBy || "-")}</td>
                 </tr>`).join("")}</tbody>
               </table>
             </div>
-          ` : '<div class="empty-state">차감 내역이 없습니다.</div>'}
+          ` : '<div class="empty-state">열매 이력이 없습니다.</div>'}
         </div>
       </section>
     `;
@@ -1513,9 +1514,6 @@
       document.getElementById("noteCountValue").textContent = String(safeValue);
     }
 
-    function getCurrentAttitudeCount() { return Number(document.getElementById("attitudeCountInput").value || 0); }
-    function setCurrentAttitudeCount(value) { document.getElementById("attitudeCountInput").value = String(Math.max(0, Math.min(99, Number(value) || 0))); }
-
     function applyCheckFieldPermissions() {
       const toggleQt = document.getElementById("toggleQt");
       const noteStepper = document.querySelector(".note-stepper");
@@ -1534,9 +1532,8 @@
     function hasUnsavedChanges() {
       if (!selectedDate) return false;
       const currentQt = document.getElementById("toggleQt").checked;
-      const currentAttitude = getCurrentAttitudeCount();
       const currentNoteCount = getCurrentNoteCount();
-      return currentQt !== baseQt || currentAttitude !== baseAttitudeCount || currentNoteCount !== baseNoteCount;
+      return currentQt !== baseQt || currentNoteCount !== baseNoteCount;
     }
 
     function confirmDiscardIfNeeded() {
@@ -1558,16 +1555,13 @@
       syncPanelFromDate(body.days[nextIdx].date);
     }
 
-    function adjustSummaryAfterSave(previousQt, previousAttitude, previousNoteCount, nextQt, nextAttitude, nextNoteCount) {
+    function adjustSummaryAfterSave(previousQt, previousNoteCount, nextQt, nextNoteCount) {
       const qtDelta = (nextQt ? 1 : 0) - (previousQt ? 1 : 0);
-      const attitudeDelta = nextAttitude - previousAttitude;
       const noteDelta = nextNoteCount - previousNoteCount;
       body.summary.qtCount += qtDelta;
-      body.summary.attitudeCount += attitudeDelta;
       body.summary.noteCount += noteDelta;
-      body.summary.totalCount += qtDelta + attitudeDelta + noteDelta;
+      body.summary.totalCount += qtDelta + noteDelta;
       document.getElementById("summaryQtCount").textContent = String(body.summary.qtCount);
-      document.getElementById("summaryAttitudeCount").textContent = String(body.summary.attitudeCount);
       document.getElementById("summaryNoteCount").textContent = String(body.summary.noteCount);
       document.getElementById("summaryTotalCount").textContent = String(body.summary.totalCount);
     }
@@ -1585,7 +1579,6 @@
       baseAttitudeCount = Number(target && (target.attitudeCount || (target.attitudeChecked ? 1 : 0)) || 0);
       baseNoteCount = Number(target && target.noteCount ? target.noteCount : 0);
       document.getElementById("toggleQt").checked = baseQt;
-      setCurrentAttitudeCount(baseAttitudeCount);
       setCurrentNoteCount(baseNoteCount);
       document.getElementById("checkPanel").classList.remove("hidden");
       applyCheckFieldPermissions();
@@ -1602,9 +1595,8 @@
         return;
       }
       const currentQt = document.getElementById("toggleQt").checked;
-      const currentAttitude = getCurrentAttitudeCount();
       const currentNoteCount = getCurrentNoteCount();
-      const changed = currentQt !== baseQt || currentAttitude !== baseAttitudeCount || currentNoteCount !== baseNoteCount;
+      const changed = currentQt !== baseQt || currentNoteCount !== baseNoteCount;
       saveButton.disabled = !changed;
       saveButton.textContent = changed ? "저장" : "변경 없음";
     }
@@ -1653,8 +1645,7 @@
 
         <div id="checkPanel" class="check-panel check-panel-fixed hidden${body.editable ? "" : " disabled"}">
           <div class="quick-row">
-            <button id="btnMarkAll" class="ghost" type="button">전체 체크</button>
-            <button id="btnClearAll" class="ghost" type="button">전체 해제</button>
+            <button id="btnAttitudeAdd" class="ghost" type="button">태도 추가</button>
             <button id="btnFruitMinus" class="ghost" type="button">열매 차감</button>
           </div>
           <div class="switch-row">
@@ -1667,10 +1658,8 @@
               <button id="btnNotePlus" class="ghost note-stepper-btn" type="button">+</button>
               <input id="noteCountInput" type="hidden" value="0" />
             </div>
-            <span class="switch-divider" aria-hidden="true">|</span>
-            <label class="attitude-input-label">올리브 <input id="attitudeCountInput" type="number" min="0" max="99" inputmode="numeric" value="0" /></label>
           </div>
-          ${permissions.canEditQt && permissions.canEditNote ? "" : permissions.canEditQt ? '<div class="legend">다른 반 학생은 QT와 태도만 체크할 수 있습니다.</div>' : '<div class="legend">다른 반 학생은 태도만 체크할 수 있습니다.</div>'}
+          ${permissions.canEditQt && permissions.canEditNote ? "" : permissions.canEditQt ? '<div class="legend">다른 반 학생은 QT만 체크할 수 있습니다.</div>' : '<div class="legend">다른 반 학생은 QT와 노트를 체크할 수 없습니다.</div>'}
           <div class="save-row">
             <button id="btnSaveCheck">저장</button>
             <button id="btnCancelSelect" class="ghost">닫기</button>
@@ -1712,43 +1701,28 @@
       updateSaveButtonState();
     });
 
-    document.getElementById("btnMarkAll").addEventListener("click", () => {
-      if (permissions.canEditQt) {
-        document.getElementById("toggleQt").checked = true;
-      }
-      if (permissions.canEditNote) {
-        setCurrentNoteCount(3);
-      }
-      setCurrentAttitudeCount(1);
-      updateSaveButtonState();
-    });
-
-    document.getElementById("btnClearAll").addEventListener("click", () => {
-      if (permissions.canEditQt) {
-        document.getElementById("toggleQt").checked = false;
-      }
-      if (permissions.canEditNote) {
-        setCurrentNoteCount(0);
-      }
-      setCurrentAttitudeCount(0);
-      updateSaveButtonState();
-    });
-
-    document.getElementById("btnFruitMinus").addEventListener("click", async () => {
+    async function createFruitAdjustment(amount, label) {
       if (!selectedDate) { showError("먼저 날짜를 선택하세요."); return; }
-      const count = Number(window.prompt("차감할 개수", "1"));
+      const count = Number(window.prompt(`${label}할 개수`, "1"));
       if (!Number.isInteger(count) || count < 1) { showError("1 이상의 정수를 입력하세요."); return; }
-      const reason = window.prompt("차감 사유 (선택)", "") || "";
+      const reason = window.prompt(`${label} 사유 (선택)`, "") || "";
+      const signedAmount = amount > 0 ? count : -count;
       try {
-        await requestWithTeacherAuth("/api/teacher/fruit-adjustments", { method: "POST", body: JSON.stringify({ studentId: Number(studentId), year, amount: -count, date: selectedDate, reason }) });
-        body.summary.totalCount -= count;
+        await requestWithTeacherAuth("/api/teacher/fruit-adjustments", { method: "POST", body: JSON.stringify({ studentId: Number(studentId), year, amount: signedAmount, date: selectedDate, reason }) });
+        if (amount > 0) {
+          body.summary.attitudeCount += count;
+          document.getElementById("summaryAttitudeCount").textContent = String(body.summary.attitudeCount);
+        }
+        body.summary.totalCount += signedAmount;
         document.getElementById("summaryTotalCount").textContent = String(body.summary.totalCount);
-        showToast("총 열매에서 차감했습니다.");
+        showToast(amount > 0 ? "태도 열매를 추가했습니다." : "총 열매에서 차감했습니다.");
       } catch (e) { showError(normalizeErrorMessage(e.message)); }
-    });
+    }
+
+    document.getElementById("btnAttitudeAdd").addEventListener("click", () => createFruitAdjustment(1, "태도를 추가"));
+    document.getElementById("btnFruitMinus").addEventListener("click", () => createFruitAdjustment(-1, "차감"));
 
     document.getElementById("toggleQt").addEventListener("change", updateSaveButtonState);
-    document.getElementById("attitudeCountInput").addEventListener("input", updateSaveButtonState);
     document.getElementById("btnNoteMinus").addEventListener("click", () => {
       if (!permissions.canEditNote) return;
       setCurrentNoteCount(getCurrentNoteCount() - 1);
@@ -1779,10 +1753,9 @@
         saveButton.textContent = "저장 중...";
         const dayTarget = (body.days || []).find(day => day.date === selectedDate);
         const previousQt = !!(dayTarget && dayTarget.qtChecked);
-        const previousAttitude = Number(dayTarget && (dayTarget.attitudeCount || (dayTarget.attitudeChecked ? 1 : 0)) || 0);
         const previousNoteCount = Number(dayTarget && dayTarget.noteCount ? dayTarget.noteCount : 0);
         const qtChecked = document.getElementById("toggleQt").checked;
-        const attitudeCount = getCurrentAttitudeCount();
+        const attitudeCount = baseAttitudeCount;
         const noteCount = getCurrentNoteCount();
         await requestWithTeacherAuth("/api/teacher/check", {
           method: "POST",
@@ -1805,7 +1778,7 @@
         baseQt = qtChecked;
         baseAttitudeCount = attitudeCount;
         baseNoteCount = noteCount;
-        adjustSummaryAfterSave(previousQt, previousAttitude, previousNoteCount, qtChecked, attitudeCount, noteCount);
+        adjustSummaryAfterSave(previousQt, previousNoteCount, qtChecked, noteCount);
         renderCalendarOnly();
         updateSaveButtonState();
         showToast("저장되었습니다.");

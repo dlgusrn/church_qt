@@ -1255,8 +1255,15 @@ body[data-app-mode="teacher"] .note-stepper-btn {
 }
 
 .teacher-fruit-adjustment-amount {
-  color: #c62828;
   font-weight: 800;
+}
+
+.teacher-fruit-adjustment-amount.deduction {
+  color: #c62828;
+}
+
+.teacher-fruit-adjustment-amount.addition {
+  color: #16724b;
 }
 
 .meeting-note-list {

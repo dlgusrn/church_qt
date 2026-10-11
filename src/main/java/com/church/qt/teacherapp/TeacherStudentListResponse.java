@@ -105,8 +105,12 @@ public record TeacherStudentListResponse(
     }
 
     public TeacherStudentListResponse withDeductionCount(long deductionCount) {
+        return withFruitAdjustments(0, deductionCount);
+    }
+
+    public TeacherStudentListResponse withFruitAdjustments(long attitudeAdditionCount, long deductionCount) {
         return new TeacherStudentListResponse(studentId, studentName, schoolGrade, displayName, contactNumber, myClassStudent,
-                myClassName, assignedClassName, qtCount, attitudeCount, noteCount, deductionCount,
-                qtCount + attitudeCount + noteCount + deductionCount);
+                myClassName, assignedClassName, qtCount, attitudeCount + attitudeAdditionCount, noteCount, deductionCount,
+                qtCount + attitudeCount + attitudeAdditionCount + noteCount + deductionCount);
     }
 }

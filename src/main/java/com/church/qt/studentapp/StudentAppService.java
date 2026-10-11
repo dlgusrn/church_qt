@@ -119,6 +119,7 @@ public class StudentAppService {
         long qtCount = yearId == null ? 0L : devotionCheckRepository.countQtByYearStudentAndDateBetween(yearId, studentId, effectiveFrom, effectiveTo);
         long attitudeCount = yearId == null ? 0L : devotionCheckRepository.countAttitudeByYearStudentAndDateBetween(yearId, studentId, effectiveFrom, effectiveTo);
         long noteCount = yearId == null ? 0L : devotionCheckRepository.sumNoteCountByYearStudentAndDateBetween(yearId, studentId, effectiveFrom, effectiveTo);
+        long attitudeAdjustment = yearId == null ? 0L : fruitAdjustmentRepository.sumAmount(yearId, studentId, FruitType.ATTITUDE, effectiveFrom, effectiveTo);
         long totalAdjustment = yearId == null ? 0L : fruitAdjustmentRepository.sumAmount(yearId, studentId, FruitType.TOTAL, effectiveFrom, effectiveTo);
 
         return new StudentCalendarResponse(
@@ -132,10 +133,10 @@ public class StudentAppService {
                 effectiveTo.toString(),
                 new StudentCalendarSummaryResponse(
                         qtCount,
-                        attitudeCount,
+                        attitudeCount + attitudeAdjustment,
                         noteCount,
                         totalAdjustment,
-                        qtCount + attitudeCount + noteCount + totalAdjustment
+                        qtCount + attitudeCount + attitudeAdjustment + noteCount + totalAdjustment
                 ),
                 days,
                 birthdays

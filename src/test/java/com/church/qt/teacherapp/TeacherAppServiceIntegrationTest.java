@@ -338,6 +338,32 @@ class TeacherAppServiceIntegrationTest {
     }
 
     @Test
+    @DisplayName("교사는 태도 열매를 추가하고 추가·차감 이력을 함께 조회할 수 있다")
+    void createAttitudeAddition_andGetFruitHistory() {
+        Teacher teacher = saveTeacher("fruit_history_teacher", TeacherRole.TEACHER, true, false);
+        Year year = saveYear(2036);
+        saveYearTeacher(year, teacher);
+        YearClass yearClass = saveYearClass(year, "열매이력반");
+        Student student = saveStudent("열매이력학생");
+        saveYearStudent(year, student, "6");
+        saveYearClassStudent(year, yearClass, student);
+
+        teacherAppService.createFruitAdjustment(teacher.getId(),
+                new CreateFruitAdjustmentRequest(student.getId(), year.getYearValue(), 3, LocalDate.of(2036, 3, 14), "칭찬"));
+        teacherAppService.createFruitAdjustment(teacher.getId(),
+                new CreateFruitAdjustmentRequest(student.getId(), year.getYearValue(), -1, LocalDate.of(2036, 3, 15), "차감 사유"));
+
+        assertEquals(3L, fruitAdjustmentRepository.sumAmount(
+                year.getId(), student.getId(), com.church.qt.domain.fruit.FruitType.ATTITUDE,
+                LocalDate.of(2036, 1, 1), LocalDate.of(2036, 12, 31)
+        ));
+        List<TeacherFruitAdjustmentResponse> history = teacherAppService.getFruitAdjustments(teacher.getId(), year.getYearValue());
+        assertEquals(2, history.size());
+        assertTrue(history.stream().anyMatch(item -> "ATTITUDE".equals(item.type()) && item.amount() == 3 && "칭찬".equals(item.reason())));
+        assertTrue(history.stream().anyMatch(item -> "TOTAL".equals(item.type()) && item.amount() == -1 && "차감 사유".equals(item.reason())));
+    }
+
+    @Test
     @DisplayName("교사는 회의록을 작성하고 목록 및 상세 조회할 수 있다")
     void meetingNote_createAndRead_success() {
         Teacher teacher = saveTeacher("meeting_teacher", TeacherRole.TEACHER, true, false);
