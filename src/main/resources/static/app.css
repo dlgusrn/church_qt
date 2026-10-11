@@ -1228,7 +1228,7 @@ body[data-app-mode="teacher"] .note-stepper-btn {
 
 .teacher-fruit-adjustment-table {
   width: 100%;
-  min-width: 620px;
+  min-width: 680px;
   border-collapse: collapse;
   font-size: 13px;
 }
@@ -1247,6 +1247,18 @@ body[data-app-mode="teacher"] .note-stepper-btn {
 .teacher-fruit-adjustment-table th {
   color: #47627d;
   background: #f4f8fc;
+  white-space: nowrap;
+}
+
+.teacher-fruit-adjustment-table th:nth-child(1),
+.teacher-fruit-adjustment-table td:nth-child(1) {
+  min-width: 96px;
+  white-space: nowrap;
+}
+
+.teacher-fruit-adjustment-table th:nth-child(2),
+.teacher-fruit-adjustment-table td:nth-child(2) {
+  min-width: 84px;
   white-space: nowrap;
 }
 

@@ -100,4 +100,6 @@ public interface YearStudentRepository extends JpaRepository<YearStudent, Long> 
     List<TeacherStudentListResponse> findTeacherStudentsForYear(@Param("teacherId") Long teacherId, @Param("yearValue") Integer yearValue);
 
     List<YearStudent> findByStudent(Student student);
+
+    boolean existsByYearIdAndStudentIdAndActiveTrue(Long yearId, Long studentId);
 }

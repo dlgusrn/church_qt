@@ -158,8 +158,13 @@ public class AdminService {
             LocalDate periodFrom = from.isAfter(yearStart) ? from : yearStart;
             LocalDate periodTo = to.isBefore(yearEnd) ? to : yearEnd;
             if (periodTo.isBefore(periodFrom)) continue;
+            Set<Long> activeStudentIds = yearStudentRepository.findActiveByYearIdOrderByGradeDescNameAsc(year.getId()).stream()
+                    .filter(yearStudent -> Boolean.TRUE.equals(yearStudent.getStudent().getActive()))
+                    .map(yearStudent -> yearStudent.getStudent().getId())
+                    .collect(Collectors.toSet());
             for (YearClassStudent membership : yearClassStudentRepository.findByYearId(year.getId())) {
                 Long studentId = membership.getStudent().getId();
+                if (!activeStudentIds.contains(studentId)) continue;
                 long qtCount = devotionCheckRepository.countQtByYearStudentAndDateBetween(year.getId(), studentId, periodFrom, periodTo);
                 long attitudeCount = devotionCheckRepository.countAttitudeByYearStudentAndDateBetween(year.getId(), studentId, periodFrom, periodTo)
                         + fruitAdjustmentRepository.sumAmount(year.getId(), studentId, FruitType.ATTITUDE, periodFrom, periodTo);
@@ -215,7 +220,12 @@ public class AdminService {
     @Transactional(readOnly = true)
     public List<FruitAdjustmentResponse> getFruitAdjustments(Long teacherId) {
         validateAdmin(teacherId);
-        return fruitAdjustmentRepository.findAllAdjustments().stream().map(FruitAdjustmentResponse::from).toList();
+        return fruitAdjustmentRepository.findAllAdjustments().stream()
+                .filter(item -> Boolean.TRUE.equals(item.getStudent().getActive()))
+                .filter(item -> yearStudentRepository.existsByYearIdAndStudentIdAndActiveTrue(
+                        item.getYear().getId(), item.getStudent().getId()))
+                .map(FruitAdjustmentResponse::from)
+                .toList();
     }
 
     @Transactional

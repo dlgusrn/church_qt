@@ -336,6 +336,9 @@ public class TeacherAppService {
         Year year = yearRepository.findByYearValue(yearValue)
                 .orElseThrow(() -> new IllegalArgumentException("연도가 존재하지 않습니다."));
         return fruitAdjustmentRepository.findAdjustmentsByYearId(year.getId()).stream()
+                .filter(item -> Boolean.TRUE.equals(item.getStudent().getActive()))
+                .filter(item -> yearStudentRepository.existsByYearIdAndStudentIdAndActiveTrue(
+                        item.getYear().getId(), item.getStudent().getId()))
                 .map(TeacherFruitAdjustmentResponse::from)
                 .toList();
     }

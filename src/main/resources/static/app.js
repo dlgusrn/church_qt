@@ -362,14 +362,14 @@
       const dayNum = Number(day.date.split("-")[2]);
       const markers = [];
       if (day.qtChecked) {
-        markers.push({ type: "qt", html: '<span class="day-marker qt" aria-label="QT">🍇</span>' });
-      }
-      const noteCount = Number(day.noteCount || 0);
-      for (let i = 0; i < noteCount; i += 1) {
-        markers.push({ type: "note", html: '<span class="day-marker note" aria-label="노트">🍐</span>' });
+        markers.push({ type: "qt", html: '<span class="day-marker qt" aria-label="포도">🍇</span>' });
       }
       const attitudeCount = Number(day.attitudeCount || (day.attitudeChecked ? 1 : 0));
-      if (attitudeCount > 0) markers.push({ type: "attitude", html: `<span class="day-marker attitude" aria-label="태도 ${attitudeCount}개">🫒${attitudeCount > 1 ? `<b>×${attitudeCount}</b>` : ""}</span>` });
+      if (attitudeCount > 0) markers.push({ type: "attitude", html: `<span class="day-marker attitude" aria-label="올리브 ${attitudeCount}개">🫒<b>×${attitudeCount}</b></span>` });
+      const noteCount = Number(day.noteCount || 0);
+      for (let i = 0; i < noteCount; i += 1) {
+        markers.push({ type: "note", html: '<span class="day-marker note" aria-label="무화과">🍐</span>' });
+      }
       const todayClass = day.isToday ? " today" : "";
       const selectedClass = selectedDate && selectedDate === day.date ? " selected" : "";
       cells.push(`
@@ -414,14 +414,6 @@
       return `
         <div class="day-icons">
           <div class="day-icons-row single">${markerHtml.join("")}</div>
-        </div>
-      `;
-    }
-
-    if (isDesktop && markers.length === 3) {
-      return `
-        <div class="day-icons">
-          <div class="day-icons-row triple">${markerHtml.join("")}</div>
         </div>
       `;
     }
@@ -597,9 +589,9 @@
         </div>
         <div class="summary">
           <div class="summary-metrics">
-            <div class="box"><div class="label">🍇 QT</div><div class="value">${body.summary.qtCount}</div></div>
-            <div class="box"><div class="label">🍐 노트</div><div class="value">${body.summary.noteCount}</div></div>
-            <div class="box"><div class="label">🫒 태도</div><div class="value">${body.summary.attitudeCount}</div></div>
+            <div class="box"><div class="label">🍇 포도</div><div class="value">${body.summary.qtCount}</div></div>
+            <div class="box"><div class="label">🫒 올리브</div><div class="value">${body.summary.attitudeCount}</div></div>
+            <div class="box"><div class="label">🍐 무화과</div><div class="value">${body.summary.noteCount}</div></div>
             <div class="box deduction-box"><div class="label">차감</div><div class="value">${body.summary.deductionCount || 0}</div></div>
           </div>
           <div class="box total-box"><div class="label">총 개수</div><div class="value">${body.summary.totalCount}</div></div>
@@ -675,7 +667,7 @@
     return `
       <nav class="teacher-tab-nav" aria-label="교사 메인 메뉴">
         <button class="teacher-tab-btn ${activeTab === "students" ? "active" : ""}" type="button" data-target="/app/teacher/students?year=${year}">학생명단</button>
-        <button class="teacher-tab-btn ${activeTab === "fruit-adjustments" ? "active" : ""}" type="button" data-target="/app/teacher/fruit-adjustments?year=${year}">열매 히스토리</button>
+        <button class="teacher-tab-btn ${activeTab === "fruit-adjustments" ? "active" : ""}" type="button" data-target="/app/teacher/fruit-adjustments?year=${year}">열매 이력</button>
         <button class="teacher-tab-btn ${activeTab === "meeting-notes" ? "active" : ""}" type="button" data-target="/app/teacher/meeting-notes?year=${year}">회의록</button>
       </nav>
     `;
@@ -1181,11 +1173,10 @@
           ${Array.isArray(adjustments) && adjustments.length ? `
             <div class="teacher-fruit-adjustment-table-wrap">
               <table class="teacher-fruit-adjustment-table">
-                <thead><tr><th>날짜</th><th>학생</th><th>구분</th><th>수량</th><th class="teacher-fruit-adjustment-reason">사유</th><th>처리 교사</th></tr></thead>
+                <thead><tr><th>날짜</th><th>학생</th><th>수량</th><th class="teacher-fruit-adjustment-reason">사유</th><th>처리 교사</th></tr></thead>
                 <tbody>${adjustments.map(item => `<tr>
                   <td>${escapeHtml(item.date || "-")}</td>
                   <td>${escapeHtml(item.studentName || "-")}</td>
-                  <td>${item.type === "ATTITUDE" ? "태도 추가" : "열매 차감"}</td>
                   <td class="teacher-fruit-adjustment-amount ${Number(item.amount) > 0 ? "addition" : "deduction"}">${Number(item.amount) > 0 ? "+" : ""}${escapeHtml(String(item.amount ?? "-"))}</td>
                   <td class="teacher-fruit-adjustment-reason">${escapeHtml(item.reason || "-")}</td>
                   <td>${escapeHtml(item.adjustedBy || "-")}</td>
@@ -1626,9 +1617,9 @@
         </div>
         <div class="summary">
           <div class="summary-metrics">
-            <div class="box"><div class="label">🍇 QT</div><div id="summaryQtCount" class="value">${body.summary.qtCount}</div></div>
-            <div class="box"><div class="label">🍐 노트</div><div id="summaryNoteCount" class="value">${body.summary.noteCount}</div></div>
-            <div class="box"><div class="label">🫒 태도</div><div id="summaryAttitudeCount" class="value">${body.summary.attitudeCount}</div></div>
+            <div class="box"><div class="label">🍇 포도</div><div id="summaryQtCount" class="value">${body.summary.qtCount}</div></div>
+            <div class="box"><div class="label">🫒 올리브</div><div id="summaryAttitudeCount" class="value">${body.summary.attitudeCount}</div></div>
+            <div class="box"><div class="label">🍐 무화과</div><div id="summaryNoteCount" class="value">${body.summary.noteCount}</div></div>
             <div class="box deduction-box"><div class="label">차감</div><div id="summaryDeductionCount" class="value">${body.summary.deductionCount || 0}</div></div>
           </div>
           <div class="box total-box"><div class="label">총 개수</div><div id="summaryTotalCount" class="value">${body.summary.totalCount}</div></div>
@@ -1645,7 +1636,7 @@
 
         <div id="checkPanel" class="check-panel check-panel-fixed hidden${body.editable ? "" : " disabled"}">
           <div class="quick-row">
-            <button id="btnAttitudeAdd" class="ghost" type="button">태도 추가</button>
+            <button id="btnAttitudeAdd" class="ghost" type="button">올리브 추가</button>
             <button id="btnFruitMinus" class="ghost" type="button">열매 차감</button>
           </div>
           <div class="switch-row">
@@ -1715,11 +1706,11 @@
         }
         body.summary.totalCount += signedAmount;
         document.getElementById("summaryTotalCount").textContent = String(body.summary.totalCount);
-        showToast(amount > 0 ? "태도 열매를 추가했습니다." : "총 열매에서 차감했습니다.");
+        showToast(amount > 0 ? "올리브 열매를 추가했습니다." : "총 열매에서 차감했습니다.");
       } catch (e) { showError(normalizeErrorMessage(e.message)); }
     }
 
-    document.getElementById("btnAttitudeAdd").addEventListener("click", () => createFruitAdjustment(1, "태도를 추가"));
+    document.getElementById("btnAttitudeAdd").addEventListener("click", () => createFruitAdjustment(1, "올리브를 추가"));
     document.getElementById("btnFruitMinus").addEventListener("click", () => createFruitAdjustment(-1, "차감"));
 
     document.getElementById("toggleQt").addEventListener("change", updateSaveButtonState);
