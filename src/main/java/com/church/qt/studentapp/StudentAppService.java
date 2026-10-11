@@ -3,6 +3,7 @@ package com.church.qt.studentapp;
 import com.church.qt.domain.devotion.DevotionCheck;
 import com.church.qt.domain.devotion.DevotionCheckRepository;
 import com.church.qt.domain.fruit.FruitAdjustmentRepository;
+import com.church.qt.domain.fruit.FruitAdjustment;
 import com.church.qt.domain.fruit.FruitType;
 import com.church.qt.domain.fruit.FruitFestivalRepository;
 import com.church.qt.domain.student.Student;
@@ -82,6 +83,15 @@ public class StudentAppService {
 
         Map<LocalDate, DevotionCheck> checkMap = checks.stream()
                 .collect(Collectors.toMap(DevotionCheck::getCheckDate, Function.identity()));
+        Map<LocalDate, Integer> attitudeAdjustmentByDate = yearId == null
+                ? Map.of()
+                : fruitAdjustmentRepository.findByYearIdAndStudentIdAndFruitTypeAndAdjustmentDateBetweenOrderByAdjustmentDateAsc(
+                                yearId, studentId, FruitType.ATTITUDE, startDate, endDate)
+                        .stream()
+                        .collect(Collectors.groupingBy(
+                                FruitAdjustment::getAdjustmentDate,
+                                Collectors.summingInt(FruitAdjustment::getAmount)
+                        ));
 
         List<StudentCalendarBirthdayResponse> birthdays = buildBirthdayList(yearId, yearMonth);
         Map<String, List<StudentCalendarBirthdayResponse>> birthdayMap = birthdays.stream()
@@ -95,8 +105,10 @@ public class StudentAppService {
                 .map(date -> {
                     DevotionCheck check = checkMap.get(date);
                     boolean qtChecked = check != null && Boolean.TRUE.equals(check.getQtChecked());
-                    boolean attitudeChecked = check != null && Boolean.TRUE.equals(check.getAttitudeChecked());
-                    int attitudeCount = check == null ? 0 : Math.max(0, check.getAttitudeCount());
+                    boolean attitudeChecked = (check != null && Boolean.TRUE.equals(check.getAttitudeChecked()))
+                            || attitudeAdjustmentByDate.getOrDefault(date, 0) > 0;
+                    int attitudeCount = (check == null ? 0 : Math.max(0, check.getAttitudeCount()))
+                            + attitudeAdjustmentByDate.getOrDefault(date, 0);
                     int noteCount = check == null ? 0 : Math.max(0, check.getNoteCount());
                     boolean isBirthday = birthdayMap.containsKey(date.toString());
 

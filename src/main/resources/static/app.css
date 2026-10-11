@@ -945,6 +945,10 @@ button.day-cell {
   color: inherit;
 }
 
+.day-marker.attitude b {
+  font-size: calc(1em - 2px);
+}
+
 .day-marker.note {
   color: inherit;
 }
