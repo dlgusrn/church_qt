@@ -108,8 +108,10 @@ public class TeacherAppService {
         List<TeacherStudentListResponse> students = yearStudentRepository.findTeacherStudentsForYear(teacherId, yearValue);
         Map<Long, String> assignedClassNameByStudentId = loadAssignedClassNames(year.getId(), students);
         Map<Long, Long> deductionByStudentId = fruitAdjustmentRepository.findTotalAdjustmentsByYearId(year.getId()).stream()
+                .filter(item -> year.getFruitResetDate() == null || !item.getAdjustmentDate().isBefore(year.getFruitResetDate()))
                 .collect(java.util.stream.Collectors.groupingBy(item -> item.getStudent().getId(), java.util.stream.Collectors.summingLong(item -> item.getAmount())));
         Map<Long, Long> attitudeAdditionByStudentId = fruitAdjustmentRepository.findAdjustmentsByYearId(year.getId()).stream()
+                .filter(item -> year.getFruitResetDate() == null || !item.getAdjustmentDate().isBefore(year.getFruitResetDate()))
                 .filter(item -> item.getFruitType() == FruitType.ATTITUDE)
                 .collect(java.util.stream.Collectors.groupingBy(item -> item.getStudent().getId(), java.util.stream.Collectors.summingLong(item -> item.getAmount())));
         return students

@@ -1547,6 +1547,7 @@
     }
 
     function adjustSummaryAfterSave(previousQt, previousNoteCount, nextQt, nextNoteCount) {
+      if (selectedDate < body.summaryFrom || selectedDate > body.summaryTo) return;
       const qtDelta = (nextQt ? 1 : 0) - (previousQt ? 1 : 0);
       const noteDelta = nextNoteCount - previousNoteCount;
       body.summary.qtCount += qtDelta;
@@ -1700,12 +1701,14 @@
       const signedAmount = amount > 0 ? count : -count;
       try {
         await requestWithTeacherAuth("/api/teacher/fruit-adjustments", { method: "POST", body: JSON.stringify({ studentId: Number(studentId), year, amount: signedAmount, date: selectedDate, reason }) });
-        if (amount > 0) {
-          body.summary.attitudeCount += count;
-          document.getElementById("summaryAttitudeCount").textContent = String(body.summary.attitudeCount);
+        if (selectedDate >= body.summaryFrom && selectedDate <= body.summaryTo) {
+          if (amount > 0) {
+            body.summary.attitudeCount += count;
+            document.getElementById("summaryAttitudeCount").textContent = String(body.summary.attitudeCount);
+          }
+          body.summary.totalCount += signedAmount;
+          document.getElementById("summaryTotalCount").textContent = String(body.summary.totalCount);
         }
-        body.summary.totalCount += signedAmount;
-        document.getElementById("summaryTotalCount").textContent = String(body.summary.totalCount);
         showToast(amount > 0 ? "올리브 열매를 추가했습니다." : "총 열매에서 차감했습니다.");
       } catch (e) { showError(normalizeErrorMessage(e.message)); }
     }

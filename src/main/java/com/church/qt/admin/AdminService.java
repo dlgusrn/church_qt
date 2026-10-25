@@ -1364,7 +1364,7 @@ public class AdminService {
         yearClassStudents.forEach(item -> {
                     YearStudent yearStudent = yearStudentMap.get(item.getYear().getId() + ":" + item.getStudent().getId());
                     Year fruitYear = item.getYearClass().getYear();
-                    LocalDate from = requestedFrom != null ? requestedFrom : (fruitYear.getFruitResetDate() == null ? LocalDate.of(fruitYear.getYearValue(), 1, 1) : fruitYear.getFruitResetDate().plusDays(1));
+                    LocalDate from = requestedFrom != null ? requestedFrom : (fruitYear.getFruitResetDate() == null ? LocalDate.of(fruitYear.getYearValue(), 1, 1) : fruitYear.getFruitResetDate());
                     LocalDate to = requestedTo != null ? requestedTo : LocalDate.of(fruitYear.getYearValue(), 12, 31);
                     long totalAdjustment = fruitAdjustmentRepository.sumAmount(fruitYear.getId(), item.getStudent().getId(), FruitType.TOTAL, from, to);
                     long attitudeAdjustment = fruitAdjustmentRepository.sumAmount(fruitYear.getId(), item.getStudent().getId(), FruitType.ATTITUDE, from, to);

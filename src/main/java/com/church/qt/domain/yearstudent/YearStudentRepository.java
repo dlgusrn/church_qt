@@ -91,6 +91,7 @@ public interface YearStudentRepository extends JpaRepository<YearStudent, Long> 
         from YearStudent ys
         join ys.student s
         left join DevotionCheck dc on dc.student = s and dc.year = ys.year
+            and (ys.year.fruitResetDate is null or dc.checkDate >= ys.year.fruitResetDate)
         where ys.year.yearValue = :yearValue
           and ys.active = true
           and s.active = true

@@ -125,7 +125,7 @@ public class StudentAppService {
                 })
                 .toList();
 
-        LocalDate effectiveFrom = summaryFrom != null ? summaryFrom : (year != null && year.getFruitResetDate() != null ? year.getFruitResetDate().plusDays(1) : LocalDate.of(yearValue, 1, 1));
+        LocalDate effectiveFrom = summaryFrom != null ? summaryFrom : (year != null && year.getFruitResetDate() != null ? year.getFruitResetDate() : LocalDate.of(yearValue, 1, 1));
         LocalDate effectiveTo = summaryTo != null ? summaryTo : LocalDate.of(yearValue, 12, 31);
         if (effectiveTo.isBefore(effectiveFrom)) throw new IllegalArgumentException("조회 시작일은 종료일보다 앞서야 합니다.");
         long qtCount = yearId == null ? 0L : devotionCheckRepository.countQtByYearStudentAndDateBetween(yearId, studentId, effectiveFrom, effectiveTo);

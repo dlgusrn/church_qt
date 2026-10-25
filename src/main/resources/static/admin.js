@@ -41,7 +41,6 @@
   let studentTotalCount = 0;
   let teacherPage = 1;
   let studentPage = 1;
-  let selectedFruitRound = null;
   const selectedTeacherIds = new Set();
   const selectedStudentIds = new Set();
   const selectedAssignmentTeacherIds = new Set();
@@ -1966,48 +1965,7 @@
 
   async function loadFruitRoundResults(from, to) {
     const students = await api(`/api/admin/fruit-round-results?from=${from}&to=${to}`, { method: "GET" });
-    selectedFruitRound = { from, to, students: Array.isArray(students) ? students : [] };
-    document.getElementById("btnPrintFruitLedger").disabled = selectedFruitRound.students.length === 0;
     document.getElementById("fruitRoundResults").innerHTML = students.length ? `<table class="manager-table"><thead><tr><th>순위</th><th>이름</th><th>QT</th><th>노트</th><th>태도</th><th>차감</th><th>총합</th></tr></thead><tbody>${students.map((s, i) => `<tr><td>${i + 1}</td><td>${escapeHtml(s.studentName)}</td><td>${s.qtCount}</td><td>${s.noteCount}</td><td>${s.attitudeCount}</td><td class="deduction-value">${s.deductionCount || 0}</td><td><strong>${s.totalCount}</strong></td></tr>`).join("")}</tbody></table>` : '<div class="table-empty">이 회차의 열매 기록이 없습니다.</div>';
-  }
-
-  function gameTicketCount(rank) {
-    if (rank >= 1 && rank <= 4) return 5;
-    if (rank <= 9) return 3;
-    if (rank <= 13) return 1;
-    return 0;
-  }
-
-  function openFruitLedgerPrint() {
-    if (!selectedFruitRound || !selectedFruitRound.students.length) {
-      render("인쇄할 회차를 먼저 선택하세요.");
-      return;
-    }
-    const popup = window.open("", "fruit-ledger-print", "width=1000,height=800");
-    if (!popup) {
-      render("팝업이 차단되었습니다. 팝업을 허용한 뒤 다시 시도하세요.");
-      return;
-    }
-    const fruitSquares = (type, count) => `<div class="fruit-line ${type}"><div class="fruit-label">${type === "grape" ? "🍇 포도" : type === "olive" ? "🫒 올리브" : "🍐 무화과"} <b>×${Math.max(0, Number(count) || 0)}</b></div><div class="fruit-squares">${Array.from({ length: Math.max(0, Number(count) || 0) }, () => '<span></span>').join("")}</div></div>`;
-    const rows = selectedFruitRound.students.map((student, index) => {
-      const rank = index + 1;
-      const gameTickets = gameTicketCount(rank);
-      return `<article class="ledger-row">
-        <div class="student-info"><strong>${rank}위 · ${escapeHtml(student.studentName)}</strong><span>보유 열매 ${student.totalCount}개</span></div>
-        <div class="fruit-lines">${fruitSquares("grape", student.qtCount)}${fruitSquares("olive", student.attitudeCount)}${fruitSquares("fig", student.noteCount)}</div>
-        <div class="game-ticket">게임권 ${gameTickets}장</div>
-      </article>`;
-    }).join("");
-    popup.document.write(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>열매 통장</title><style>
-      @page { size: A4; margin: 12mm; }
-      * { box-sizing: border-box; } body { margin: 0; color: #17212b; font-family: Arial, 'Apple SD Gothic Neo', sans-serif; }
-      h1 { margin: 0; font-size: 22px; } .period { margin: 6px 0 16px; color: #516273; font-size: 13px; }
-      .ledger-row { break-inside: avoid; border: 1px solid #aebdca; border-radius: 8px; padding: 9px; margin-bottom: 8px; }
-      .student-info { display: flex; justify-content: space-between; gap: 12px; align-items: center; font-size: 14px; }.student-info span { color: #516273; }.fruit-lines { display: grid; gap: 5px; margin: 8px 0; }
-      .fruit-line { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 7px; align-items: start; }.fruit-label { white-space: nowrap; font-size: 12px; font-weight: 700; }.fruit-squares { display: flex; flex-wrap: wrap; gap: 3px; min-height: 18px; }.fruit-squares span { width: 15px; height: 15px; border: 1px solid #55728a; border-radius: 2px; background: #eef7ff; }.fruit-line.olive .fruit-squares span { background: #eff7df; border-color: #6e8d4a; }.fruit-line.fig .fruit-squares span { background: #f3eaff; border-color: #8567a8; }
-      .game-ticket { border-top: 1px dashed #b9c7d2; padding-top: 6px; font-size: 13px; font-weight: 700; } .note { margin-top: 14px; font-size: 11px; color: #66788a; }
-    </style></head><body><h1>열매 통장</h1><p class="period">회차 기간: ${selectedFruitRound.from} ~ ${selectedFruitRound.to}</p>${rows}<p class="note">게임권: 1~4등 5장 · 5~9등 3장 · 10~13등 1장</p><script>window.onload = () => window.print();</script></body></html>`);
-    popup.document.close();
   }
 
   document.getElementById("btnCreateFruitRound").addEventListener("click", async () => {
@@ -2015,10 +1973,10 @@
       if (!window.confirm("정말로 초기화하시겠습니까? 초기화 후에는 새 회차가 시작되며, 이전 수량은 열매 현황에서 계속 확인할 수 있습니다.")) return;
       await api("/api/admin/fruit-reset", { method: "POST", body: JSON.stringify({}) });
       await loadFruitRounds();
+      await refreshYearClasses();
       render("새 열매 회차를 시작했습니다.");
     } catch (e) { render(e.message); }
   });
-  document.getElementById("btnPrintFruitLedger").addEventListener("click", openFruitLedgerPrint);
 
   function setFruitTab(tabName) {
     document.querySelectorAll("[data-fruit-tab-target]").forEach(button => button.classList.toggle("active", button.dataset.fruitTabTarget === tabName));

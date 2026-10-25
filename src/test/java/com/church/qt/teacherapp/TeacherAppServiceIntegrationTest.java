@@ -46,6 +46,9 @@ class TeacherAppServiceIntegrationTest {
     private TeacherAppService teacherAppService;
 
     @Autowired
+    private com.church.qt.studentapp.StudentAppService studentAppService;
+
+    @Autowired
     private TeacherRepository teacherRepository;
 
     @Autowired
@@ -497,6 +500,50 @@ class TeacherAppServiceIntegrationTest {
 
         teacherAppService.deleteMeetingNote(pastor.getId(), createdByPastorTarget.noteId());
         assertFalse(meetingNoteRepository.findById(createdByPastorTarget.noteId()).isPresent());
+    }
+
+    @Test
+    @DisplayName("학생 목록은 초기화 당일부터 체크와 추가·차감을 집계한다")
+    void getStudents_countsFromResetDateIncludingAdjustments() {
+        Teacher teacher = saveTeacher("reset_counts_teacher", TeacherRole.TEACHER, true, true);
+        Year year = saveYear(2035);
+        Student student = saveStudent("초기화학생");
+        Student emptyStudent = saveStudent("기록없는학생");
+        saveYearStudent(year, student, "4");
+        saveYearStudent(year, emptyStudent, "4");
+        LocalDate reset = LocalDate.of(2035, 5, 10);
+        for (LocalDate date : List.of(reset.minusDays(1), reset, reset.plusDays(1))) {
+            devotionCheckRepository.save(DevotionCheck.builder().year(year).student(student)
+                    .checkDate(date).qtChecked(true).attitudeCount(2).noteCount(3)
+                    .checkedByTeacher(teacher).build());
+            fruitAdjustmentRepository.save(com.church.qt.domain.fruit.FruitAdjustment.builder()
+                    .year(year).student(student).adjustmentDate(date)
+                    .fruitType(com.church.qt.domain.fruit.FruitType.ATTITUDE).amount(4)
+                    .adjustedByTeacher(teacher).build());
+            fruitAdjustmentRepository.save(com.church.qt.domain.fruit.FruitAdjustment.builder()
+                    .year(year).student(student).adjustmentDate(date)
+                    .fruitType(com.church.qt.domain.fruit.FruitType.TOTAL).amount(-1)
+                    .adjustedByTeacher(teacher).build());
+        }
+        assertEquals(27, teacherAppService.getStudents(teacher.getId(), 2035).stream()
+                .filter(item -> item.studentId().equals(student.getId())).findFirst().orElseThrow().totalCount());
+        year.resetFruitCounts(reset);
+        List<TeacherStudentListResponse> responses = teacherAppService.getStudents(teacher.getId(), 2035);
+        TeacherStudentListResponse result = responses.stream()
+                .filter(item -> item.studentId().equals(student.getId())).findFirst().orElseThrow();
+        assertEquals(2, result.qtCount());
+        assertEquals(12, result.attitudeCount());
+        assertEquals(6, result.noteCount());
+        assertEquals(-2, result.deductionCount());
+        assertEquals(18, result.totalCount());
+        var calendar = studentAppService.getStudentCalendar(student.getId(), 2035, 5, null, null);
+        assertEquals(reset.toString(), calendar.summaryFrom());
+        assertEquals(result.totalCount(), calendar.summary().totalCount());
+        var previousRound = studentAppService.getStudentCalendar(student.getId(), 2035, 5,
+                LocalDate.of(2035, 1, 1), reset.minusDays(1));
+        assertEquals(9, previousRound.summary().totalCount());
+        assertEquals(0, responses.stream().filter(item -> item.studentId().equals(emptyStudent.getId()))
+                .findFirst().orElseThrow().totalCount());
     }
 
     private Teacher saveTeacher(String loginId, TeacherRole role, boolean active, boolean canCheckAllStudents) {
